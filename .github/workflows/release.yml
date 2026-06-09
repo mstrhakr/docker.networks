@@ -5,7 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'source/**'
+      - 'source/docker.networks/**'
+      - 'source/pkg_build.sh'
+      - 'docker.networks.plg'
   workflow_dispatch:
 
 permissions:
