@@ -63,6 +63,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <span class="left"><i class="fa fa-sitemap icon"></i>_(Display)_</span>
 </div>
 
+<style>
+#dn-settings-form dl:last-child {
+  text-align: center;
+}
+#dn-settings-form dl:last-child dd {
+  text-align: center;
+}
+#dn-status {
+  display: inline-block;
+  margin-left: 15px;
+  font-weight: 500;
+}
+</style>
+
 <form method="post" action="" id="dn-settings-form">
 
   <dl>
