@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.09.1519">
+<!ENTITY version     "2026.06.09.1523">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "c208776463fac649e2d321d5eeacf466">
-<!ENTITY pkgBUILD    "1919">
+<!ENTITY packageMD5  "a8d04a149bf968dde5fc9f4254a710ee">
+<!ENTITY pkgBUILD    "1923">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,9 +32,9 @@
 >
 
 <CHANGES>
-###2026.06.09.1519
-- Minor updates and improvements
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.09.1517...v2026.06.09.1519)
+###2026.06.09.1523
+- Bug Fixes: streamline release body generation for Docker Networks
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.09.1519...v2026.06.09.1523)
 </CHANGES>
 
 <FILE Run="/bin/bash">
