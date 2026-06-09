@@ -1,9 +1,9 @@
 Author="mstrhakr"
-Type="php"
-Menu="Settings"
+Type="xmenu"
+Menu="Utilities"
 Lock="true"
-Title="Docker Networks"
-Icon="fa-network-wired"
+Title="Docker Networks Settings"
+Icon="sitemap"
 ---
 <?php
 $cfgPath = '/boot/config/plugins/docker.networks/docker.networks.cfg';

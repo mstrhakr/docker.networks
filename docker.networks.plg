@@ -2,8 +2,8 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.09.1319">
-<!ENTITY launch "Docker/DockerNetworks">
+<!ENTITY version     "2026.06.09.1706">
+<!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
 <!ENTITY packageMD5  "31c404e9fdf197b432b7eeda8523d015">
 <!ENTITY pkgBUILD    "1719">
@@ -24,7 +24,7 @@
          version="&version;"
          launch="&launch;"
          pluginURL="&pluginURL;"
-         icon="network"
+         icon="sitemap"
          min="7.0"
          support="https://github.com/mstrhakr/docker.networks/issues"
          project="https://github.com/mstrhakr/docker.networks"
