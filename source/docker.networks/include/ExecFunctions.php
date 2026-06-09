@@ -109,6 +109,38 @@ function dockerNetworksRun(string $command): array
     ];
 }
 
+function dockerNetworksPluginCfgPath(): string
+{
+    return '/boot/config/plugins/docker.networks/docker.networks.cfg';
+}
+
+function dockerNetworksLoadPluginCfg(): array
+{
+    $path = dockerNetworksPluginCfgPath();
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $cfg = @parse_ini_file($path, false, INI_SCANNER_RAW);
+    return is_array($cfg) ? $cfg : [];
+}
+
+function dockerNetworksCfgBool(array $cfg, string $key, bool $default = false): bool
+{
+    if (!isset($cfg[$key])) {
+        return $default;
+    }
+
+    $value = strtolower(trim((string) $cfg[$key], " \t\n\r\0\x0B\"'"));
+    return in_array($value, ['1', 'true', 'yes', 'on', 'preserve', 'enabled'], true);
+}
+
+function dockerNetworksIsTemplatePersistenceEnabled(): bool
+{
+    $cfg = dockerNetworksLoadPluginCfg();
+    return dockerNetworksCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
+}
+
 function dockerNetworksMetaPath(): string
 {
     return '/boot/config/plugins/docker.networks/networks-meta.json';
@@ -391,7 +423,12 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
-    $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, true);
+    $persist = dockerNetworksIsTemplatePersistenceEnabled()
+        ? dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, true)
+        : [
+            'persisted' => false,
+            'warning' => 'Runtime network change applied. Template XML persistence is disabled in Docker Networks settings.',
+        ];
     dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
 
     dockerNetworksRespond([
@@ -432,7 +469,12 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
         return;
     }
 
-    $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, false);
+    $persist = dockerNetworksIsTemplatePersistenceEnabled()
+        ? dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, false)
+        : [
+            'persisted' => false,
+            'warning' => 'Runtime network change applied. Template XML persistence is disabled in Docker Networks settings.',
+        ];
     dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
 
     dockerNetworksRespond([

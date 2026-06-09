@@ -4,7 +4,9 @@
   var apiBase = window.dockerNetworksApiUrl || '/plugins/docker.networks/include/Exec.php';
   var refreshMs = (window.dockerNetworksRefreshInterval || 30) * 1000;
   var userNetworksPersist = !!window.dockerNetworksUserNetworksPersist;
+  var xmlTemplatePersist = !!window.dockerNetworksXmlTemplatePersist;
   var dockerSettingsUrl = window.dockerNetworksSettingsUrl || '/Settings/Docker';
+  var pluginSettingsUrl = window.dockerNetworksPluginSettingsUrl || '/Settings/docker.networks.settings';
   var allContainers = [];
   var currentNetwork = null;
   var networksById = {};
@@ -61,6 +63,17 @@
     }
 
     warning.html('Docker setting <strong>"Preserve user defined networks"</strong> is currently disabled. Connections may be lost when Docker/server restarts. <a href="' + escapeHtml(dockerSettingsUrl) + '">Open Docker Settings</a> to enable it.');
+    warning.show();
+  }
+
+  function updateTemplatePersistenceWarning() {
+    var warning = $('#dockerTemplatePersistenceWarning');
+    if (xmlTemplatePersist) {
+      warning.hide();
+      return;
+    }
+
+    warning.html('Template XML persistence is <strong>disabled</strong>. Network changes apply at runtime only. Enable it explicitly in <a href="' + escapeHtml(pluginSettingsUrl) + '">Docker Networks Settings</a> if you want template edits for restart persistence.');
     warning.show();
   }
 
@@ -535,6 +548,7 @@
 
   $(function () {
     updateUserNetworksWarning();
+    updateTemplatePersistenceWarning();
 
     $('#btnCreateNetwork').on('click', openCreateModal);
     $('#btnRefreshNetworks').on('click', function () {

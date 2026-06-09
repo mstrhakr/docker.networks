@@ -1,27 +1,53 @@
 <?php
 $cfgPath = '/boot/config/plugins/docker.networks/docker.networks.cfg';
-$cfg = file_exists($cfgPath) ? (@parse_ini_file($cfgPath) ?: []) : [];
+$cfg = file_exists($cfgPath) ? (@parse_ini_file($cfgPath, false, INI_SCANNER_RAW) ?: []) : [];
+
+function dockerNetworksNormalizeCfgValue(string $value): string
+{
+  return strtolower(trim($value, " \t\n\r\0\x0B\"'"));
+}
+
+function dockerNetworksCfgBool(array $cfg, string $key, bool $default = false): bool
+{
+  if (!isset($cfg[$key])) {
+    return $default;
+  }
+
+  $value = dockerNetworksNormalizeCfgValue((string)$cfg[$key]);
+  return in_array($value, ['1', 'true', 'yes', 'on', 'preserve', 'enabled'], true);
+}
+
 $refreshInterval = isset($cfg['REFRESH_INTERVAL']) ? (int)$cfg['REFRESH_INTERVAL'] : 30;
 if ($refreshInterval <= 0) {
     $refreshInterval = 30;
 }
+$xmlTemplatePersist = dockerNetworksCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 
 $dockerCfgPath = '/boot/config/docker.cfg';
-$dockerCfg = file_exists($dockerCfgPath) ? (@parse_ini_file($dockerCfgPath) ?: []) : [];
-$userNetworksMode = isset($dockerCfg['DOCKER_USER_NETWORKS']) ? strtolower(trim((string)$dockerCfg['DOCKER_USER_NETWORKS'])) : 'remove';
+$dockerCfg = file_exists($dockerCfgPath) ? (@parse_ini_file($dockerCfgPath, false, INI_SCANNER_RAW) ?: []) : [];
+$userNetworksMode = isset($dockerCfg['DOCKER_USER_NETWORKS']) ? dockerNetworksNormalizeCfgValue((string)$dockerCfg['DOCKER_USER_NETWORKS']) : 'remove';
+if ($userNetworksMode === 'remove' && file_exists($dockerCfgPath)) {
+  $dockerRaw = @file_get_contents($dockerCfgPath);
+  if (is_string($dockerRaw) && preg_match('/^DOCKER_USER_NETWORKS\s*=\s*"?([^"\r\n]+)"?/mi', $dockerRaw, $match)) {
+    $userNetworksMode = dockerNetworksNormalizeCfgValue((string)$match[1]);
+  }
+}
 $userNetworksPersist = ($userNetworksMode === 'preserve');
 ?>
 <script>
 window.dockerNetworksApiUrl = '/plugins/docker.networks/include/Exec.php';
 window.dockerNetworksRefreshInterval = <?= (int)$refreshInterval ?>;
 window.dockerNetworksUserNetworksPersist = <?= $userNetworksPersist ? 'true' : 'false' ?>;
+window.dockerNetworksXmlTemplatePersist = <?= $xmlTemplatePersist ? 'true' : 'false' ?>;
 window.dockerNetworksSettingsUrl = '/Settings/Docker';
+window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
 </script>
 
 <div id="docker-networks-page">
 <div class="alert alert-success" id="successMsg" style="display:none;"></div>
 <div class="alert alert-error" id="errorMsg" style="display:none;"></div>
 <div class="alert" id="dockerUserNetworksWarning" style="display:none;"></div>
+<div class="alert" id="dockerTemplatePersistenceWarning" style="display:none;"></div>
 
 <div class="docker-networks-actions">
   <button class="button orange-button" id="btnCreateNetwork" type="button">+ Create Network</button>
