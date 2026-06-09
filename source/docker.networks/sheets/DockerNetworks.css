@@ -217,6 +217,43 @@
 
 #docker-networks-page .alert { padding: 15px; margin: 10px 0; border-radius: 4px; }
 
+#docker-networks-page .alert.dn-banner {
+  position: relative;
+  display: none;
+  padding: 12px 42px 12px 14px;
+  border-radius: 8px;
+  border-left: 4px solid var(--dn-brand-orange);
+  background: color-mix(in srgb, var(--dn-brand-orange) 10%, transparent);
+  color: var(--dn-text-color);
+  line-height: 1.45;
+}
+
+#docker-networks-page .alert.dn-banner a {
+  color: var(--dn-brand-orange);
+  text-decoration: underline;
+}
+
+#docker-networks-page .dn-banner-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dn-alt-text-color);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+#docker-networks-page .dn-banner-close:hover {
+  background: var(--dn-action-hover-bg);
+  color: var(--dn-text-color);
+}
+
 #docker-networks-page .alert-success {
   background-color: var(--green-on-dark, rgba(46, 160, 67, 0.15));
   color: var(--green, #2ea043);

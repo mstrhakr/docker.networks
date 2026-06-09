@@ -55,26 +55,55 @@
     }
   }
 
+  function ensureDismissibleBanner(selector) {
+    var banner = $(selector);
+    if (!banner.length || banner.data('dismissibleInit')) {
+      return banner;
+    }
+
+    banner.addClass('dn-banner');
+    var message = $('<div class="dn-banner-message"></div>');
+    var close = $('<button type="button" class="dn-banner-close" aria-label="Close">&times;</button>');
+
+    close.on('click', function () {
+      banner.data('dismissed', true).hide();
+    });
+
+    banner.empty().append(message).append(close);
+    banner.data('dismissibleInit', true);
+    return banner;
+  }
+
+  function showBanner(selector, html) {
+    var banner = ensureDismissibleBanner(selector);
+    if (!banner.length || banner.data('dismissed')) {
+      return;
+    }
+    banner.find('.dn-banner-message').html(html);
+    banner.show();
+  }
+
+  function hideBanner(selector) {
+    var banner = $(selector);
+    banner.hide();
+  }
+
   function updateUserNetworksWarning() {
-    var warning = $('#dockerUserNetworksWarning');
     if (userNetworksPersist) {
-      warning.hide();
+      hideBanner('#dockerUserNetworksWarning');
       return;
     }
 
-    warning.html('Docker setting <strong>"Preserve user defined networks"</strong> is currently disabled. Connections may be lost when Docker/server restarts. <a href="' + escapeHtml(dockerSettingsUrl) + '">Open Docker Settings</a> to enable it.');
-    warning.show();
+    showBanner('#dockerUserNetworksWarning', 'Docker setting <strong>"Preserve user defined networks"</strong> is currently disabled. Connections may be lost when Docker/server restarts. <a href="' + escapeHtml(dockerSettingsUrl) + '">Open Docker Settings</a> to enable it.');
   }
 
   function updateTemplatePersistenceWarning() {
-    var warning = $('#dockerTemplatePersistenceWarning');
     if (xmlTemplatePersist) {
-      warning.hide();
+      hideBanner('#dockerTemplatePersistenceWarning');
       return;
     }
 
-    warning.html('Template XML persistence is <strong>disabled</strong>. Network changes apply at runtime only. Enable it explicitly in <a href="' + escapeHtml(pluginSettingsUrl) + '">Docker Networks Settings</a> if you want template edits for restart persistence.');
-    warning.show();
+    showBanner('#dockerTemplatePersistenceWarning', 'Template XML persistence is <strong>disabled</strong>. Network changes apply at runtime only. Enable it explicitly in <a href="' + escapeHtml(pluginSettingsUrl) + '">Docker Networks Settings</a> if you want template edits for restart persistence.');
   }
 
   function logClient(msg, data, level, category) {
@@ -565,9 +594,10 @@
     $('#createNetworkForm').on('submit', createNetwork);
     $('#editNetworkForm').on('submit', updateNetwork);
 
-    loadContainers().then(function () {
-      return loadNetworks({ showLoading: true, refreshContainers: false });
+    loadNetworks({ showLoading: true, refreshContainers: false }).catch(function () {
+      return undefined;
     });
+    loadContainers();
     logClient('Docker Networks UI initialized', { refreshMs: refreshMs }, 'info', 'ui');
     setInterval(function () {
       loadNetworks({ refreshContainers: !!currentNetwork }).catch(function () {
