@@ -1,6 +1,4 @@
-<!-- markdownlint-disable MD041 -->
-<!-- markdownlint-disable-next-line MD037 -->
-** Docker Networks **
+<!-- markdownlint-disable-next-line MD036 MD041 -->
+**Docker Networks**
 
 Manage custom Docker networks from Unraid.
-<!-- markdownlint-enable MD041 -->
