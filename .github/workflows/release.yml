@@ -138,22 +138,18 @@ jobs:
 
           printf '%s\n' "$NOTES" > /tmp/docker-networks-changelog.txt
 
-          cat > /tmp/docker-networks-release-body.md <<EOF
-          ## Docker Networks v${VERSION}
-
-          ${NOTES}
-
-          ### Manual Install
-
-          **Via Unraid Plugin Manager (Install Plugin):**
-          ```
-          https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg
-          ```
-
-          ### Release Assets
-          - `docker.networks.plg`
-          - `docker.networks-*-noarch-*.txz`
-          EOF
+          {
+            echo "## Docker Networks v${VERSION}"
+            echo
+            printf '%s\n' "$NOTES"
+            echo
+            echo "### Manual Install"
+            echo
+            echo "**Via Unraid Plugin Manager (Install Plugin):**"
+            echo '```'
+            echo "https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg"
+            echo '```'
+          } > /tmp/docker-networks-release-body.md
 
           echo "Changelog:"
           cat /tmp/docker-networks-changelog.txt
