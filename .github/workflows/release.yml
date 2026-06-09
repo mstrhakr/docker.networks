@@ -113,6 +113,14 @@ jobs:
             archive/docker.networks.plg
             archive/docker.networks-*-noarch-*.txz
 
+      - name: Checkout main for PLG sync
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          clean: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Sync root PLG with release metadata
         shell: bash
         run: |
@@ -124,10 +132,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Rebase to latest main before editing to avoid pull conflicts
-          # against a dirty tree after commit.
-          git fetch origin main
-          git rebase origin/main
+          # Clean checkout above should avoid dirty-worktree conflicts.
+          git pull --rebase origin main
 
           sed -i \
             -e "s|<!ENTITY version.*\".*\"|<!ENTITY version     \"${VERSION}\"|" \
