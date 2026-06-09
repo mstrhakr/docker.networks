@@ -4,7 +4,7 @@ Menu="Tasks:61"
 Lock="true"
 Nchan="docker_load"
 Cond="$var['fsState'] == 'Started' && exec('/etc/rc.d/rc.docker status | grep -v \"not\"') && exec(\"grep '^MENU_LOCATION=' /boot/config/plugins/docker.networks/docker.networks.cfg 2>/dev/null | grep -Ei '\\\"?Tab\\\"?$'\")"
-Title="Docker Networks"
+Title="Networks"
 Tag="sitemap"
 Code="f6ff"
 ---

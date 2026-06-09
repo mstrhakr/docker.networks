@@ -9,8 +9,8 @@
 - `DockerNetworksTools.page`
   - Route: `Tools/DockerNetworks`.
   - Purpose: same network manager UI when `MENU_LOCATION=Tools`.
-- `DockerNetworksTab.page`
-  - Route: `DockerNetworks`.
+- `Networks.page`
+  - Route: `Networks`.
   - Purpose: same network manager UI when `MENU_LOCATION=Tab` as its own top-level tab.
 - `docker.networks.settings.page`
   - Route: `Settings/docker.networks.settings`.

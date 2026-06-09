@@ -8,7 +8,7 @@ $openPath = '/Docker/DockerNetworks';
 if ($menuLocation === 'tools') {
   $openPath = '/Tools/DockerNetworksTools';
 } elseif ($menuLocation === 'tab') {
-  $openPath = '/DockerNetworks';
+  $openPath = '/Networks';
 }
 
 $mytiles[$cardName]['column1'] = <<<EOT
