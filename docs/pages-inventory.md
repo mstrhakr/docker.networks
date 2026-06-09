@@ -8,10 +8,7 @@
   - Pattern: stub page loading CSS/JS + include fragment.
 - `DockerNetworksTools.page`
   - Route: `Tools/DockerNetworksTools`.
-  - Purpose: Tools-mode shortcut tile in the `UNRAID-OS` section; redirects to the hidden view route.
-- `DockerNetworksView.page`
-  - Route: `DockerNetworksView`.
-  - Purpose: hidden always-available network management UI used by Tools mode shortcuts and other non-tab entry points.
+  - Purpose: Tools-mode shortcut tile in the `UNRAID-OS` section; redirects to `Tools/DockerNetworks`.
 - `Networks.page`
   - Route: `Networks`.
   - Purpose: same network manager UI when `MENU_LOCATION=Tab` as its own top-level tab.

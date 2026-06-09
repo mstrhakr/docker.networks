@@ -6,7 +6,7 @@ $menuLocation = strtolower(trim((string)($cfg['MENU_LOCATION'] ?? 'docker')));
 
 $openPath = '/Docker/DockerNetworks';
 if ($menuLocation === 'tools') {
-  $openPath = '/DockerNetworksView';
+  $openPath = '/Tools/DockerNetworks';
 } elseif ($menuLocation === 'tab') {
   $openPath = '/Networks';
 }

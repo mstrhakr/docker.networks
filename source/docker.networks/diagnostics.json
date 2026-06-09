@@ -1,7 +1,0 @@
-{
-  "title": "Docker Networks",
-  "files": [
-    "/var/log/docker-networks*"
-  ],
-  "system_diagnostics": true
-}
