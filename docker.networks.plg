@@ -101,7 +101,6 @@ done
 
 rm -f $(ls &pluginLOC;/&name;*.txz 2>/dev/null|grep -v '&packageVER;')
 rm -rf &emhttpLOC;
-rm -rf &pluginLOC;
 </INLINE>
 </FILE>
 
