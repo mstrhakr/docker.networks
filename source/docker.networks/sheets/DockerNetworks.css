@@ -288,3 +288,18 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Settings Page */
+#dn-settings-form dl:last-child {
+  text-align: center;
+}
+
+#dn-settings-form dl:last-child dd {
+  text-align: center;
+}
+
+#dn-status {
+  display: inline-block;
+  margin-left: 15px;
+  font-weight: 500;
+}
