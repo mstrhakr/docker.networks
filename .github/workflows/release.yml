@@ -13,6 +13,9 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_TZ: "America/Detroit"
+
 jobs:
   build-and-release:
     if: >-
@@ -38,7 +41,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(date -u +'%Y.%m.%d.%H%M')"
+          export TZ="${RELEASE_TZ}"
+          version="$(date +'%Y.%m.%d.%H%M')"
           tag="v${version}"
 
           echo "version=${version}" >> "$GITHUB_OUTPUT"
@@ -74,7 +78,8 @@ jobs:
           # Expected format: docker.networks-<version>-noarch-<build>.txz
           package_build=$(echo "$package_file" | sed -E 's/^docker\.networks-[^-]+-noarch-([0-9]+)\.txz$/\1/')
           if [[ -z "$package_build" || "$package_build" == "$package_file" ]]; then
-            package_build=$(date -u +'%H%M')
+            export TZ="${RELEASE_TZ}"
+            package_build=$(date +'%H%M')
           fi
 
           echo "file=$package_file" >> "$GITHUB_OUTPUT"
