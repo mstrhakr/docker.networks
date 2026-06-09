@@ -583,6 +583,9 @@
     $('#btnRefreshNetworks').on('click', function () {
       loadNetworks({ showLoading: true, refreshContainers: !!currentNetwork });
     });
+    $('#btnPluginSettings').on('click', function () {
+      window.location.href = pluginSettingsUrl;
+    });
     $('#closeCreateModal').on('click', closeCreateModal);
     $('#btnCancelCreate').on('click', closeCreateModal);
     $('#closeEditModal').on('click', closeEditModal);
