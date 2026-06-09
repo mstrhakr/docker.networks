@@ -7,5 +7,5 @@ contact_links:
     url: https://github.com/mstrhakr/docker.networks/security/advisories/new
     about: Report security issues privately via GitHub
   - name: Unraid support forum
-    url: https://forums.unraid.net/
+    url: https://forums.unraid.net/topic/199371-plugin-docker-network-manager/
     about: For usage questions and support, please use the Unraid forums.
