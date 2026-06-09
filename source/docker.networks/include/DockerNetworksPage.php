@@ -94,7 +94,7 @@ window.dockerNetworksRefreshInterval = <?= (int)$refreshInterval ?>;
 </div>
 
 <div id="manageModal" class="modal">
-  <div class="modal-content modal-wide">
+  <div class="modal-content modal-wide manage-modal-content">
     <div class="modal-header">
       <h2>Manage Network Attachments</h2>
       <span class="close" id="closeManageModal">&times;</span>
@@ -113,18 +113,25 @@ window.dockerNetworksRefreshInterval = <?= (int)$refreshInterval ?>;
       </div>
     </div>
 
+    <div class="loading manage-loading" id="manageLoading">
+      <div class="docker-networks-spinner"></div>
+      <p>Loading network attachments...</p>
+    </div>
+
     <h3>Connected Containers</h3>
-    <table id="connectedContainersTable" class="small-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Container ID</th>
-          <th>Address</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="connectedContainersBody"></tbody>
-    </table>
+    <div class="manage-table-wrap" id="manageTableWrap">
+      <table id="connectedContainersTable" class="small-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Container ID</th>
+            <th>Address</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="connectedContainersBody"></tbody>
+      </table>
+    </div>
 
     <div style="margin-top:15px;">
       <button type="button" class="button" id="btnCloseManage">Close</button>

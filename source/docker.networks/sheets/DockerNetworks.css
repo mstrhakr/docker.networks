@@ -144,6 +144,9 @@
   position: fixed;
   z-index: 10002;
   inset: 0;
+  overflow-y: auto;
+  padding: 18px 10px;
+  box-sizing: border-box;
   background: var(--dn-modal-overlay-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -151,11 +154,13 @@
 
 #docker-networks-page .modal-content {
   background-color: var(--dn-background-color);
-  margin: 10% auto;
+  margin: 0 auto;
   padding: 20px;
   border: 1px solid var(--dn-border-color);
   width: 80%;
   max-width: 600px;
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
   border-radius: 8px;
   color: var(--dn-text-color);
   box-shadow: var(--dn-panel-box-shadow);
@@ -163,6 +168,10 @@
 }
 
 #docker-networks-page .modal-content.modal-wide { max-width: 900px; }
+
+#docker-networks-page .manage-modal-content {
+  width: min(96vw, 1100px);
+}
 
 #docker-networks-page .modal-header {
   display: flex;
@@ -221,6 +230,16 @@
 
 #docker-networks-page .loading { display: none; text-align: center; color: var(--alt-text-color); }
 
+#docker-networks-page .manage-loading {
+  margin: 8px 0 14px;
+}
+
+#docker-networks-page .manage-loading .docker-networks-spinner {
+  width: 28px;
+  height: 28px;
+  margin: 8px auto;
+}
+
 #docker-networks-page .docker-networks-spinner {
   border: 4px solid var(--dn-border-color);
   border-top: 4px solid var(--dn-brand-orange);
@@ -232,6 +251,17 @@
 }
 
 #docker-networks-page .small-table { width: 100%; border-collapse: collapse; }
+
+#docker-networks-page .manage-table-wrap {
+  max-height: min(48vh, 460px);
+  overflow: auto;
+  border: 1px solid var(--dn-border-color);
+  border-radius: 6px;
+}
+
+#docker-networks-page #connectedContainersTable {
+  min-width: 760px;
+}
 
 #docker-networks-page .small-table th,
 #docker-networks-page .small-table td {

@@ -292,17 +292,29 @@
   function openManageModal(network) {
     currentNetwork = network;
     $('#manageNetworkName').text((network.Name || '') + ' (' + (network.Id || '').substring(0, 12) + ')');
+    setManageLoading(true);
     $('#manageModal').show();
 
-    loadContainers().finally(function () {
+    loadContainers().then(function () {
       renderConnectedContainers(currentNetwork || network);
       renderConnectSelect(currentNetwork || network);
+    }).finally(function () {
+      setManageLoading(false);
     });
   }
 
   function closeManageModal() {
     currentNetwork = null;
     $('#manageModal').hide();
+    setManageLoading(false);
+  }
+
+  function setManageLoading(isLoading) {
+    var loading = !!isLoading;
+    $('#manageLoading').toggle(loading);
+    $('#manageTableWrap').toggle(!loading);
+    $('#btnConnectContainer').prop('disabled', loading);
+    $('#connectContainerSelect').prop('disabled', loading);
   }
 
   function connectedContainerList(network) {
@@ -434,8 +446,11 @@
   }
 
   function reloadDataAndRefreshManageModal() {
+    setManageLoading(true);
     loadNetworks({ refreshContainers: true }).catch(function (err) {
       showMessage(String(err), true);
+    }).finally(function () {
+      setManageLoading(false);
     });
   }
 
