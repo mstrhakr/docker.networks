@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+issue_templates:
+  - feature_request.yaml
+  - bug_report.yaml
+contact_links:
+  - name: Security policy
+    url: https://github.com/mstrhakr/docker.networks/security/advisories/new
+    about: Report security issues privately via GitHub
+  - name: Unraid support forum
+    url: https://forums.unraid.net/
+    about: For usage questions and support, please use the Unraid forums.
