@@ -1,0 +1,20 @@
+parameters:
+  level: 9
+  fileExtensions:
+    - php
+    - page
+  paths:
+    - source
+  excludePaths:
+    - */vendor/*
+  ignoreErrors:
+    - # Ignore filesystem paths that won't be present in the dev environment
+      messages:
+        - "#/usr/local/emhttp/plugins/.*.php#"
+      identifier: requireOnce.fileNotFound
+    - # Ignore missing dynamix helper functions that won't be present in the dev environment
+      messages:
+        - "#autov#"
+        - "#parse_plugin_cfg#"
+      identifier: function.notFound
+  reportUnmatchedIgnoredErrors: false

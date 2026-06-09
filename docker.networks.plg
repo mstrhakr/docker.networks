@@ -1,0 +1,82 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+<!ENTITY name "docker.networks">
+<!ENTITY author "mstrhakr">
+<!ENTITY version     "2026.06.09.0001">
+<!ENTITY launch "Docker/DockerNetworks">
+<!ENTITY packageVER "&version;">
+<!ENTITY packageMD5  "00000000000000000000000000000000">
+<!ENTITY pkgBUILD    "0001">
+<!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
+<!ENTITY packagefile "&packageName;.txz">
+<!ENTITY github "mstrhakr/docker.networks">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/main/&name;.plg">
+<!ENTITY packageURL "https://github.com/&github;/releases/download/v&version;/&packagefile;">
+<!ENTITY pluginsPATH "/boot/config/plugins">
+<!ENTITY pluginLOC "&pluginsPATH;/&name;">
+<!ENTITY emhttpPATH "/usr/local/emhttp/plugins">
+<!ENTITY emhttpLOC "&emhttpPATH;/&name;">
+<!ENTITY pluginsInstalledPATH "/var/log/packages">
+]>
+
+<PLUGIN  name="&name;"
+         author="&author;"
+         version="&version;"
+         launch="&launch;"
+         pluginURL="&pluginURL;"
+         icon="fa-network-wired"
+         min="6.12.0"
+         support="https://github.com/mstrhakr/docker.networks/issues"
+         project="https://github.com/mstrhakr/docker.networks"
+         readme="https://github.com/mstrhakr/docker.networks#readme"
+>
+
+<CHANGES>
+###2026.06.09
+- Repo migrated to stable-only compose-style build/deploy structure.
+- Added robust local build, test, and deployment scripts.
+</CHANGES>
+
+<FILE Run="/bin/bash">
+<INLINE>
+# Remove all but current package file from plugin root.
+rm -f $(ls &pluginLOC;/&name;*.txz 2>/dev/null|grep -v '&packageVER;')
+
+# Clean up legacy package entries.
+for pkg in &pluginsInstalledPATH;/&name;-*; do
+    [ -e "$pkg" ] &amp;&amp; removepkg "$(basename "$pkg")" 2>/dev/null || true
+done
+</INLINE>
+</FILE>
+
+<FILE Name="&pluginLOC;/&packagefile;" Run="upgradepkg --install-new">
+<URL>&packageURL;</URL>
+<MD5>&packageMD5;</MD5>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE>
+echo ""
+echo "----------------------------------------------------"
+echo ""
+echo "      Docker Networks has been installed."
+echo "               Version: &version;"
+echo ""
+echo "----------------------------------------------------"
+echo ""
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+for pkg in &pluginsInstalledPATH;/&name;-*; do
+    [ -e "$pkg" ] &amp;&amp; removepkg "$(basename "$pkg")" 2>/dev/null || true
+done
+
+rm -f $(ls &pluginLOC;/&name;*.txz 2>/dev/null|grep -v '&packageVER;')
+rm -rf &emhttpLOC;
+rm -rf &pluginLOC;
+</INLINE>
+</FILE>
+
+</PLUGIN>

@@ -1,0 +1,260 @@
+#docker-networks-page {
+  --dn-background-color: var(--background-color, var(--dynamix-sb-body-bg-color, #1f1f1f));
+  --dn-text-color: var(--text-color, var(--dynamix-sb-body-text-color, #ddd));
+  --dn-alt-background-color: var(--alt-background-color, var(--dynamix-tablesorter-tbody-row-alt-bg-color, rgba(255, 255, 255, 0.04)));
+  --dn-alt-text-color: var(--alt-text-color, var(--dynamix-sb-title-text-color, #bbb));
+  --dn-border-color: var(--border-color, var(--dynamix-box-inner-div-border-color, rgba(255, 255, 255, 0.12)));
+  --dn-table-header-bg: var(--table-header-bg, var(--dynamix-tablesorter-thead-th-bg-color, var(--dn-alt-background-color)));
+  --dn-table-header-color: var(--table-header-color, var(--dynamix-tablesorter-thead-th-text-color, var(--dn-text-color)));
+  --dn-brand-orange: var(--brand-orange, var(--dynamix-sb-message-link-color, #f60));
+  --dn-brand-red: var(--brand-red, var(--red, #f85149));
+  --dn-status-error: var(--status-error, var(--red, #f85149));
+  --dn-status-success: var(--status-success, var(--green, #46a546));
+  --dn-action-primary-color: var(--action-primary-color, #f3b15f);
+  --dn-action-hover-bg: var(--action-hover-bg, rgba(255, 255, 255, 0.06));
+  --dn-modal-overlay-bg: var(--modal-overlay-bg, rgba(0, 0, 0, 0.35));
+  --dn-panel-box-shadow: var(--panel-box-shadow, 0 20px 60px rgba(0, 0, 0, 0.35));
+  color: var(--dn-text-color);
+}
+
+#docker-networks-page,
+#docker-networks-page p,
+#docker-networks-page label,
+#docker-networks-page h2,
+#docker-networks-page h3,
+#docker-networks-page strong,
+#docker-networks-page th,
+#docker-networks-page td,
+#docker-networks-page select,
+#docker-networks-page input,
+#docker-networks-page option,
+#docker-networks-page button {
+  color: inherit;
+}
+
+#docker-networks-page .docker-networks-actions {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+
+#docker-networks-page #networksTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  table-layout: fixed;
+}
+
+#docker-networks-page #networksTable th,
+#docker-networks-page #networksTable td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--dn-border-color);
+  color: var(--dn-text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+#docker-networks-page #networksTable th {
+  background-color: var(--dn-table-header-bg);
+  color: var(--dn-table-header-color);
+  font-weight: normal;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+#docker-networks-page #networksTable tbody tr:hover {
+  background-color: var(--dn-alt-background-color);
+}
+
+#docker-networks-page .network-name {
+  color: var(--dn-text-color);
+  font-weight: 600;
+}
+
+#docker-networks-page .network-id {
+  display: inline-block;
+  margin-top: 2px;
+  font-family: var(--font-bitstream, monospace);
+  font-size: 0.85em;
+  color: var(--dn-alt-text-color);
+}
+
+#docker-networks-page .network-desc {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--dn-alt-text-color);
+  font-size: 0.9em;
+}
+
+#docker-networks-page .network-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--dn-alt-background-color);
+  border: 1px solid var(--dn-border-color);
+  color: var(--dn-brand-orange);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#docker-networks-page .button,
+#docker-networks-page .btn {
+  margin: 2px;
+  min-width: 86px;
+}
+
+#docker-networks-page .orange-button {
+  color: var(--dn-action-primary-color);
+}
+
+#docker-networks-page .button:hover,
+#docker-networks-page .btn:hover,
+#docker-networks-page .orange-button:hover {
+  background-color: var(--hover-button-background);
+}
+
+#docker-networks-page .docker-networks-danger-button {
+  color: var(--dn-status-error) !important;
+}
+
+#docker-networks-page .button:focus-visible,
+#docker-networks-page .btn:focus-visible,
+#docker-networks-page .close:focus-visible {
+  outline: 2px solid var(--dn-brand-orange);
+  outline-offset: 2px;
+}
+
+#docker-networks-page .btn:disabled,
+#docker-networks-page .btn[disabled],
+#docker-networks-page .button:disabled,
+#docker-networks-page .button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#docker-networks-page .modal {
+  display: none;
+  position: fixed;
+  z-index: 10002;
+  inset: 0;
+  background: var(--dn-modal-overlay-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#docker-networks-page .modal-content {
+  background-color: var(--dn-background-color);
+  margin: 10% auto;
+  padding: 20px;
+  border: 1px solid var(--dn-border-color);
+  width: 80%;
+  max-width: 600px;
+  border-radius: 8px;
+  color: var(--dn-text-color);
+  box-shadow: var(--dn-panel-box-shadow);
+  opacity: 1;
+}
+
+#docker-networks-page .modal-content.modal-wide { max-width: 900px; }
+
+#docker-networks-page .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--dn-border-color);
+  padding-bottom: 10px;
+}
+
+#docker-networks-page .close {
+  color: var(--dn-alt-text-color);
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+#docker-networks-page .close:hover {
+  color: var(--dn-brand-red);
+}
+
+#docker-networks-page .form-group { margin-bottom: 15px; }
+
+#docker-networks-page .form-group label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+#docker-networks-page .form-group input,
+#docker-networks-page .form-group select {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--dn-border-color);
+  border-radius: 4px;
+  background-color: var(--dn-background-color);
+  color: var(--dn-text-color);
+}
+
+#docker-networks-page .alert { padding: 15px; margin: 10px 0; border-radius: 4px; }
+
+#docker-networks-page .alert-success {
+  background-color: var(--green-on-dark, rgba(46, 160, 67, 0.15));
+  color: var(--green, #2ea043);
+  border: 1px solid var(--green, #2ea043);
+}
+
+#docker-networks-page .alert-error {
+  background-color: var(--red-on-dark, rgba(248, 81, 73, 0.15));
+  color: var(--red, #f85149);
+  border: 1px solid var(--red, #f85149);
+}
+
+#docker-networks-page .loading { display: none; text-align: center; color: var(--alt-text-color); }
+
+#docker-networks-page .docker-networks-spinner {
+  border: 4px solid var(--dn-border-color);
+  border-top: 4px solid var(--dn-brand-orange);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
+#docker-networks-page .small-table { width: 100%; border-collapse: collapse; }
+
+#docker-networks-page .small-table th,
+#docker-networks-page .small-table td {
+  border-bottom: 1px solid var(--dn-border-color);
+  padding: 8px;
+  text-align: left;
+}
+
+#docker-networks-page .small-table th {
+  background-color: var(--dn-alt-background-color);
+  color: var(--dn-table-header-color);
+}
+
+#docker-networks-page .swal-text-block {
+  text-align: left;
+  color: var(--dn-text-color);
+}
+
+#docker-networks-page .swal-text-block strong {
+  color: var(--dn-text-color);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
