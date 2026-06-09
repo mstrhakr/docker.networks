@@ -27,8 +27,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run_number_padded=$(printf '%04d' "${GITHUB_RUN_NUMBER}")
-          version="$(date -u +'%Y.%m.%d').${run_number_padded}"
+          version="$(date -u +'%Y.%m.%d.%H%M')"
           tag="v${version}"
 
           echo "version=${version}" >> "$GITHUB_OUTPUT"
