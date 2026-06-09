@@ -129,12 +129,13 @@
 
   function renderNetworkRow(row, net) {
     var key = networkKey(net);
-    var nameHtml = '<strong class="network-name">' + escapeHtml(net.Name || '') + '</strong><br>' +
-      '<span class="network-id">' + escapeHtml((net.Id || '').substring(0, 12)) + '</span>';
+    var nameHtml = '<strong class="network-name">' + escapeHtml(net.Name || '') + '</strong>';
 
     if (net.IsProtected) {
-      nameHtml += '<br><span class="network-badge">' + escapeHtml(net.ProtectionLabel || 'Protected') + '</span>';
+      nameHtml += ' <span class="network-badge">' + escapeHtml(net.ProtectionLabel || 'Protected') + '</span>';
     }
+
+    nameHtml += '<br><span class="network-id">' + escapeHtml((net.Id || '').substring(0, 12)) + '</span>';
 
     if (net.Description) {
       nameHtml += '<br><span class="network-desc">' + escapeHtml(net.Description) + '</span>';

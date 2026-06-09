@@ -92,7 +92,7 @@
 
 #docker-networks-page .network-badge {
   display: inline-block;
-  margin-top: 4px;
+  margin-left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--dn-alt-background-color);
@@ -102,6 +102,7 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  vertical-align: text-bottom;
 }
 
 #docker-networks-page .button,
