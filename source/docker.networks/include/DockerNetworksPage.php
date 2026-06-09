@@ -5,15 +5,23 @@ $refreshInterval = isset($cfg['REFRESH_INTERVAL']) ? (int)$cfg['REFRESH_INTERVAL
 if ($refreshInterval <= 0) {
     $refreshInterval = 30;
 }
+
+$dockerCfgPath = '/boot/config/docker.cfg';
+$dockerCfg = file_exists($dockerCfgPath) ? (@parse_ini_file($dockerCfgPath) ?: []) : [];
+$userNetworksMode = isset($dockerCfg['DOCKER_USER_NETWORKS']) ? strtolower(trim((string)$dockerCfg['DOCKER_USER_NETWORKS'])) : 'remove';
+$userNetworksPersist = ($userNetworksMode === 'preserve');
 ?>
 <script>
 window.dockerNetworksApiUrl = '/plugins/docker.networks/include/Exec.php';
 window.dockerNetworksRefreshInterval = <?= (int)$refreshInterval ?>;
+window.dockerNetworksUserNetworksPersist = <?= $userNetworksPersist ? 'true' : 'false' ?>;
+window.dockerNetworksSettingsUrl = '/Settings/Docker';
 </script>
 
 <div id="docker-networks-page">
 <div class="alert alert-success" id="successMsg" style="display:none;"></div>
 <div class="alert alert-error" id="errorMsg" style="display:none;"></div>
+<div class="alert" id="dockerUserNetworksWarning" style="display:none;"></div>
 
 <div class="docker-networks-actions">
   <button class="button orange-button" id="btnCreateNetwork" type="button">+ Create Network</button>

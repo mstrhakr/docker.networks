@@ -3,6 +3,8 @@
 
   var apiBase = window.dockerNetworksApiUrl || '/plugins/docker.networks/include/Exec.php';
   var refreshMs = (window.dockerNetworksRefreshInterval || 30) * 1000;
+  var userNetworksPersist = !!window.dockerNetworksUserNetworksPersist;
+  var dockerSettingsUrl = window.dockerNetworksSettingsUrl || '/Settings/Docker';
   var allContainers = [];
   var currentNetwork = null;
   var networksById = {};
@@ -49,6 +51,17 @@
       $('#errorMsg').hide();
       setTimeout(function () { $('#successMsg').fadeOut(); }, 5000);
     }
+  }
+
+  function updateUserNetworksWarning() {
+    var warning = $('#dockerUserNetworksWarning');
+    if (userNetworksPersist) {
+      warning.hide();
+      return;
+    }
+
+    warning.html('Docker setting <strong>"Preserve user defined networks"</strong> is currently disabled. Connections may be lost when Docker/server restarts. <a href="' + escapeHtml(dockerSettingsUrl) + '">Open Docker Settings</a> to enable it.');
+    warning.show();
   }
 
   function logClient(msg, data, level, category) {
@@ -402,7 +415,11 @@
         return;
       }
 
-      showMessage('Container connected', false);
+      if (data.warning) {
+        showMessage(data.warning, true);
+      } else {
+        showMessage('Container connected', false);
+      }
       reloadDataAndRefreshManageModal();
     });
   }
@@ -423,7 +440,11 @@
             return;
           }
 
-          showMessage('Container disconnected', false);
+          if (data.warning) {
+            showMessage(data.warning, true);
+          } else {
+            showMessage('Container disconnected', false);
+          }
           reloadDataAndRefreshManageModal();
         });
       }
@@ -513,6 +534,8 @@
   }
 
   $(function () {
+    updateUserNetworksWarning();
+
     $('#btnCreateNetwork').on('click', openCreateModal);
     $('#btnRefreshNetworks').on('click', function () {
       loadNetworks({ showLoading: true, refreshContainers: !!currentNetwork });

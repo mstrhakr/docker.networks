@@ -371,6 +371,18 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
+    $containerName = dockerNetworksResolveContainerName($containerId);
+    if ($containerName === '') {
+        dockerNetworksRespond(['success' => false, 'error' => 'Container not found'], 404);
+        return;
+    }
+
+    $networkName = dockerNetworksResolveNetworkName($networkId);
+    if ($networkName === '') {
+        dockerNetworksRespond(['success' => false, 'error' => 'Network not found'], 404);
+        return;
+    }
+
     $result = dockerNetworksRun('docker network connect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerId));
 
     if ($result['exitCode'] !== 0) {
@@ -379,8 +391,15 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
-    dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'containerId' => $containerId], 'user', 'info', 'exec');
-    dockerNetworksRespond(['success' => true, 'message' => 'Container connected to network']);
+    $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, true);
+    dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+
+    dockerNetworksRespond([
+        'success' => true,
+        'message' => 'Container connected to network',
+        'persisted' => $persist['persisted'],
+        'warning' => $persist['warning'],
+    ]);
 }
 
 function dockerNetworksHandleDisconnectContainer(array $request): void
@@ -393,6 +412,18 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
         return;
     }
 
+    $containerName = dockerNetworksResolveContainerName($containerId);
+    if ($containerName === '') {
+        dockerNetworksRespond(['success' => false, 'error' => 'Container not found'], 404);
+        return;
+    }
+
+    $networkName = dockerNetworksResolveNetworkName($networkId);
+    if ($networkName === '') {
+        dockerNetworksRespond(['success' => false, 'error' => 'Network not found'], 404);
+        return;
+    }
+
     $result = dockerNetworksRun('docker network disconnect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerId));
 
     if ($result['exitCode'] !== 0) {
@@ -401,13 +432,20 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
         return;
     }
 
-    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'containerId' => $containerId], 'user', 'info', 'exec');
-    dockerNetworksRespond(['success' => true, 'message' => 'Container disconnected from network']);
+    $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, false);
+    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+
+    dockerNetworksRespond([
+        'success' => true,
+        'message' => 'Container disconnected from network',
+        'persisted' => $persist['persisted'],
+        'warning' => $persist['warning'],
+    ]);
 }
 
 function dockerNetworksHandleListContainers(): void
 {
-    $result = dockerNetworksRun("docker ps -a --format='{{json .}}'");
+    $result = dockerNetworksRun("docker ps --format='{{json .}}'");
     if ($result['exitCode'] !== 0) {
         dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to list containers'], 500);
         return;
@@ -435,4 +473,152 @@ function dockerNetworksHandleListContainers(): void
     });
 
     dockerNetworksRespond(['success' => true, 'containers' => $containers]);
+}
+
+function dockerNetworksResolveContainerName(string $containerId): string
+{
+    $result = dockerNetworksRun('docker inspect --format={{json .Name}} ' . escapeshellarg($containerId));
+    if ($result['exitCode'] !== 0) {
+        return '';
+    }
+
+    $decoded = json_decode((string) $result['output'], true);
+    if (!is_string($decoded) || $decoded === '') {
+        return '';
+    }
+
+    return ltrim($decoded, '/');
+}
+
+function dockerNetworksResolveNetworkName(string $networkId): string
+{
+    $network = dockerNetworksInspectNetwork($networkId);
+    if (!is_array($network) || !isset($network['Name'])) {
+        return '';
+    }
+
+    return trim((string) $network['Name']);
+}
+
+function dockerNetworksUserTemplatePath(string $containerName): string
+{
+    $dir = '/boot/config/plugins/dockerMan/templates-user';
+    if (!is_dir($dir)) {
+        return '';
+    }
+
+    $target = 'my-' . $containerName . '.xml';
+    $targetLower = strtolower($target);
+    $match = '';
+
+    foreach (glob($dir . '/my-*.xml') ?: [] as $template) {
+        $name = basename((string) $template);
+        if ($name === $target) {
+            return (string) $template;
+        }
+        if ($match === '' && strtolower($name) === $targetLower) {
+            $match = (string) $template;
+        }
+    }
+
+    return $match;
+}
+
+function dockerNetworksBuildTemplateConnectCmd(string $networkName, string $containerName): string
+{
+    return '&& docker network connect ' . $networkName . ' ' . $containerName;
+}
+
+function dockerNetworksBuildLegacyTemplateConnectCmd(string $networkName, string $containerName): string
+{
+    return '/usr/bin/docker network connect ' . escapeshellarg($networkName) . ' ' . escapeshellarg($containerName) . ' >/dev/null 2>&1 || true';
+}
+
+function dockerNetworksAppendPostArgsCommand(string $postArgs, string $command): string
+{
+    $trimmedPostArgs = trim($postArgs);
+    if ($trimmedPostArgs === '') {
+        return $command;
+    }
+
+    return rtrim($trimmedPostArgs) . ' ' . $command;
+}
+
+function dockerNetworksRemovePostArgsCommand(string $postArgs, string $command): string
+{
+    $pattern = '/\s*' . preg_quote($command, '/') . '(?=\s|$)/i';
+    $updated = preg_replace($pattern, '', $postArgs);
+    if (!is_string($updated)) {
+        return trim($postArgs);
+    }
+
+    return trim(preg_replace('/\s+/', ' ', $updated) ?: '');
+}
+
+function dockerNetworksPersistNetworkAttachInTemplate(string $containerName, string $networkName, bool $attach): array
+{
+    $templatePath = dockerNetworksUserTemplatePath($containerName);
+    if ($templatePath === '') {
+        return [
+            'persisted' => false,
+            'warning' => 'Runtime network change applied, but no user template was found to persist this after Docker/server restart.',
+        ];
+    }
+
+    $xml = @simplexml_load_file($templatePath);
+    if ($xml === false) {
+        return [
+            'persisted' => false,
+            'warning' => 'Runtime network change applied, but failed to load container template XML for persistence.',
+        ];
+    }
+
+    $currentPostArgs = isset($xml->PostArgs) ? trim((string) $xml->PostArgs) : '';
+    $managedCmd = dockerNetworksBuildTemplateConnectCmd($networkName, $containerName);
+    $legacyCmd = dockerNetworksBuildLegacyTemplateConnectCmd($networkName, $containerName);
+
+    $normalizedCurrent = strtolower(preg_replace('/\s+/', ' ', $currentPostArgs) ?: '');
+    $normalizedManaged = strtolower(preg_replace('/\s+/', ' ', $managedCmd) ?: '');
+    $normalizedLegacy = strtolower(preg_replace('/\s+/', ' ', $legacyCmd) ?: '');
+
+    $newPostArgs = $currentPostArgs;
+    if ($attach) {
+        if (strpos($normalizedCurrent, $normalizedManaged) === false && strpos($normalizedCurrent, $normalizedLegacy) === false) {
+            $newPostArgs = dockerNetworksAppendPostArgsCommand($currentPostArgs, $managedCmd);
+        }
+    } else {
+        $newPostArgs = dockerNetworksRemovePostArgsCommand($currentPostArgs, $managedCmd);
+        $newPostArgs = dockerNetworksRemovePostArgsCommand($newPostArgs, $legacyCmd);
+    }
+
+    if ($newPostArgs === $currentPostArgs) {
+        return [
+            'persisted' => true,
+            'warning' => '',
+        ];
+    }
+
+    $xml->PostArgs = $newPostArgs;
+
+    $dom = new DOMDocument('1.0');
+    $dom->preserveWhiteSpace = false;
+    $dom->formatOutput = true;
+    if (!$dom->loadXML((string) $xml->asXML())) {
+        return [
+            'persisted' => false,
+            'warning' => 'Runtime network change applied, but failed to prepare updated container template XML.',
+        ];
+    }
+
+    if (file_put_contents($templatePath, $dom->saveXML()) === false) {
+        return [
+            'persisted' => false,
+            'warning' => 'Runtime network change applied, but failed to write container template XML for persistence.',
+        ];
+    }
+
+    return [
+        'persisted' => true,
+        'warning' => '',
+    ];
 }
