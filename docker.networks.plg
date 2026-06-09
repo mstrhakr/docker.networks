@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.09.1327">
+<!ENTITY version     "2026.06.09.1333">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "f5539e37b306c24a8eae8fb997e16f5e">
-<!ENTITY pkgBUILD    "1727">
+<!ENTITY packageMD5  "f466d2d07be5ac5461dc5e243dd2249a">
+<!ENTITY pkgBUILD    "1733">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
