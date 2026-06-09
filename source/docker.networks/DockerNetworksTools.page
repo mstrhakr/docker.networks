@@ -1,13 +1,10 @@
 Author="mstrhakr"
-Type="xmenu"
-Menu="Main:62"
+Menu="UNRAID-OS"
+Icon="sitemap"
+Tag="sitemap"
 Lock="true"
 Nchan="docker_load"
 Cond="$var['fsState'] == 'Started' && exec('/etc/rc.d/rc.docker status | grep -v \"not\"') && exec(\"grep '^MENU_LOCATION=' /boot/config/plugins/docker.networks/docker.networks.cfg 2>/dev/null | grep -Ei '\\\"?Tools\\\"?$'\")"
 Title="Docker Networks"
-Icon="sitemap"
 ---
-<?php
-header('Location: /Networks');
-exit;
-?>
+<?php header('Location: /DockerNetworksView', true, 302); exit; ?>

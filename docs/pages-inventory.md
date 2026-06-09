@@ -7,8 +7,11 @@
   - Purpose: primary network management UI when `MENU_LOCATION=Docker` (`Menu="Docker:2"`, `Type="php"`, `Nchan="docker_load"`).
   - Pattern: stub page loading CSS/JS + include fragment.
 - `DockerNetworksTools.page`
-  - Route: `Tools/DockerNetworks`.
-  - Purpose: same network manager UI when `MENU_LOCATION=Tools`.
+  - Route: `Tools/DockerNetworksTools`.
+  - Purpose: Tools-mode shortcut tile in the `UNRAID-OS` section; redirects to the hidden view route.
+- `DockerNetworksView.page`
+  - Route: `DockerNetworksView`.
+  - Purpose: hidden always-available network management UI used by Tools mode shortcuts and other non-tab entry points.
 - `Networks.page`
   - Route: `Networks`.
   - Purpose: same network manager UI when `MENU_LOCATION=Tab` as its own top-level tab.
