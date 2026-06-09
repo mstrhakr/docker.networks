@@ -30,6 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install prerequisites
         run: |
@@ -50,6 +52,132 @@ jobs:
 
           echo "Using version: ${version}"
           echo "Using tag: ${tag}"
+
+      - name: Generate changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.meta.outputs.version }}"
+          NEW_TAG="${{ steps.meta.outputs.tag }}"
+          LAST_TAG=$(git tag -l 'v*' | sort -V | tail -1)
+
+          if [[ -n "$LAST_TAG" ]]; then
+            echo "Changes since $LAST_TAG"
+            RANGE="${LAST_TAG}..HEAD"
+          else
+            echo "No previous tag found — using all commits"
+            RANGE="HEAD"
+          fi
+
+          declare -A CATEGORIES=(
+            [feat]="Features"
+            [fix]="Bug Fixes"
+            [perf]="Performance"
+            [refactor]="Refactoring"
+            [docs]="Documentation"
+            [test]="Tests"
+            [build]="Build"
+            [ci]="CI/CD"
+            [chore]="Chores"
+          )
+          ORDER=(feat fix perf refactor docs test build ci chore)
+
+          declare -A BUCKET
+          UNCATEGORIZED=""
+
+          while IFS= read -r subject; do
+            [[ -z "$subject" ]] && continue
+            [[ "$subject" =~ ^Merge\  ]] && continue
+            [[ "$subject" =~ ^Release\ v ]] && continue
+            [[ "$subject" =~ ^\[skip\ ci\] ]] && continue
+            [[ "$subject" =~ ^\[no\ ci\] ]] && continue
+            [[ "$subject" =~ ^chore:\ sync\ PLG\ for\ v ]] && continue
+            [[ "$subject" =~ ^v[0-9]{4}\. ]] && continue
+
+            CONV_RE='^([a-z]+)(\([^)]+\))?:[[:space:]](.+)$'
+            if [[ "$subject" =~ $CONV_RE ]]; then
+              TYPE="${BASH_REMATCH[1]}"
+              SCOPE="${BASH_REMATCH[2]}"
+              MSG="${BASH_REMATCH[3]}"
+              LABEL="${CATEGORIES[$TYPE]:-$TYPE}"
+              if [[ -n "$SCOPE" ]]; then
+                LINE="- ${LABEL} ${SCOPE}: ${MSG}"
+              else
+                LINE="- ${LABEL}: ${MSG}"
+              fi
+              BUCKET[$TYPE]+="${LINE}"$'\n'
+            else
+              UNCATEGORIZED+="- ${subject}"$'\n'
+            fi
+          done < <(git log "$RANGE" --pretty=format:"%s" --no-merges)
+
+          NOTES="###${VERSION}"$'\n'
+          HAS_CONTENT=false
+
+          for TYPE in "${ORDER[@]}"; do
+            if [[ -n "${BUCKET[$TYPE]:-}" ]]; then
+              NOTES+="${BUCKET[$TYPE]}"
+              HAS_CONTENT=true
+            fi
+          done
+
+          if [[ -n "$UNCATEGORIZED" ]]; then
+            NOTES+="$UNCATEGORIZED"
+            HAS_CONTENT=true
+          fi
+
+          if [[ "$HAS_CONTENT" == false ]]; then
+            NOTES+="- Minor updates and improvements"$'\n'
+          fi
+
+          if [[ -n "$LAST_TAG" ]]; then
+            NOTES+="- [View all changes](https://github.com/${{ github.repository }}/compare/${LAST_TAG}...${NEW_TAG})"$'\n'
+          fi
+
+          printf '%s\n' "$NOTES" > /tmp/docker-networks-changelog.txt
+
+          cat > /tmp/docker-networks-release-body.md <<EOF
+          ## Docker Networks v${VERSION}
+
+          ${NOTES}
+
+          ### Manual Install
+
+          **Via Unraid Plugin Manager (Install Plugin):**
+          ```
+          https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg
+          ```
+
+          ### Release Assets
+          - `docker.networks.plg`
+          - `docker.networks-*-noarch-*.txz`
+          EOF
+
+          echo "Changelog:"
+          cat /tmp/docker-networks-changelog.txt
+
+      - name: Update PLG changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PYEOF'
+          import html
+          import pathlib
+          import re
+
+          plg_path = pathlib.Path('docker.networks.plg')
+          notes_path = pathlib.Path('/tmp/docker-networks-changelog.txt')
+
+          notes = notes_path.read_text()
+          escaped = html.escape(notes.rstrip('\n'))
+          content = plg_path.read_text()
+          pattern = r'(<CHANGES>\n).*?(\n</CHANGES>)'
+          replacement = r'\1' + escaped + r'\2'
+          updated = re.sub(pattern, replacement, content, flags=re.DOTALL)
+          plg_path.write_text(updated)
+          PYEOF
 
       - name: Build package
         shell: bash
@@ -95,19 +223,7 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: ${{ steps.meta.outputs.tag }}
-          body: |
-            ## Docker Networks v${{ steps.meta.outputs.version }}
-
-            ### Manual Install
-
-            **Via Unraid Plugin Manager (Install Plugin):**
-            ```
-            https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg
-            ```
-
-            ### Release Assets
-            - `docker.networks.plg`
-            - `docker.networks-*-noarch-*.txz`
+          body_path: /tmp/docker-networks-release-body.md
           files: |
             archive/docker.networks.plg
             archive/docker.networks-*-noarch-*.txz
@@ -142,6 +258,23 @@ jobs:
             -e "s|<!ENTITY packageMD5.*\".*\"|<!ENTITY packageMD5  \"${MD5}\"|" \
             -e "s|<!ENTITY pkgBUILD.*\".*\"|<!ENTITY pkgBUILD    \"${BUILD}\"|" \
             docker.networks.plg
+
+          python3 - <<'PYEOF'
+          import html
+          import pathlib
+          import re
+
+          plg_path = pathlib.Path('docker.networks.plg')
+          notes_path = pathlib.Path('/tmp/docker-networks-changelog.txt')
+
+          notes = notes_path.read_text()
+          escaped = html.escape(notes.rstrip('\n'))
+          content = plg_path.read_text()
+          pattern = r'(<CHANGES>\n).*?(\n</CHANGES>)'
+          replacement = r'\1' + escaped + r'\2'
+          updated = re.sub(pattern, replacement, content, flags=re.DOTALL)
+          plg_path.write_text(updated)
+          PYEOF
 
           git add docker.networks.plg
           if git diff --cached --quiet; then
