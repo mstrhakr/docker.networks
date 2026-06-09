@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -84,9 +84,9 @@ jobs:
           echo "Build: $package_build"
 
       - name: Publish GitHub release
-        uses: ncipollo/release-action@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag: ${{ steps.meta.outputs.tag }}
+          tag_name: ${{ steps.meta.outputs.tag }}
           name: ${{ steps.meta.outputs.tag }}
           body: |
             ## Docker Networks v${{ steps.meta.outputs.version }}
@@ -98,23 +98,18 @@ jobs:
             https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg
             ```
 
-            **Via CLI:**
-            ```
-            installplg https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg
-            ```
-
             ### Release Assets
             - `docker.networks.plg`
             - `docker.networks-*-noarch-*.txz`
-          allowUpdates: true
-          replacesArtifacts: true
-          artifactErrorsFailBuild: true
-          artifacts: |
+          files: |
             archive/docker.networks.plg
             archive/docker.networks-*-noarch-*.txz
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout main for PLG sync
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
