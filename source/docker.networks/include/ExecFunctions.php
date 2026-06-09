@@ -487,7 +487,11 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
 
 function dockerNetworksHandleListContainers(): void
 {
-    $result = dockerNetworksRun("docker ps --format='{{json .}}'");
+    $psCommand = dockerNetworksIsTemplatePersistenceEnabled()
+        ? "docker ps -a --format='{{json .}}'"
+        : "docker ps --format='{{json .}}'";
+
+    $result = dockerNetworksRun($psCommand);
     if ($result['exitCode'] !== 0) {
         dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to list containers'], 500);
         return;
