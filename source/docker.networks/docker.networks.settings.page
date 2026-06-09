@@ -10,14 +10,26 @@ $cfgPath = '/boot/config/plugins/docker.networks/docker.networks.cfg';
 $defaultCfgPath = '/usr/local/emhttp/plugins/docker.networks/default.cfg';
 $validLocations = ['Docker', 'Tools', 'Tab'];
 
-$cfg = file_exists($cfgPath) ? (@parse_ini_file($cfgPath) ?: []) : [];
+// Strip legacy #-comments before parsing so a dirty cfg never causes a fatal ini error.
+function dockerNetworksSettingsLoadCfg(string $path): array {
+    $raw = @file_get_contents($path);
+    if ($raw === false) return [];
+    $sanitized = preg_replace('/^#[^\n]*(\n|$)/m', '', $raw);
+    $parsed = @parse_ini_string((string)$sanitized, false, INI_SCANNER_RAW);
+    return is_array($parsed) ? $parsed : [];
+}
+
+$cfg = file_exists($cfgPath)
+    ? dockerNetworksSettingsLoadCfg($cfgPath)
+    : (file_exists($defaultCfgPath) ? dockerNetworksSettingsLoadCfg($defaultCfgPath) : []);
+
 $currentLocation = (string)($cfg['MENU_LOCATION'] ?? 'Docker');
 if (!in_array($currentLocation, $validLocations, true)) {
     $currentLocation = 'Docker';
 }
 
-$statusMessage = '';
-$statusClass = '';
+$statusMsg  = '';
+$statusType = 'success'; // 'success' | 'error'
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $requested = isset($_POST['MENU_LOCATION']) ? trim((string)$_POST['MENU_LOCATION']) : 'Docker';
@@ -25,55 +37,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $requested = 'Docker';
     }
 
-    // Read existing cfg values (parsed, no comments) then merge with new value.
-    $existing = file_exists($cfgPath) ? (@parse_ini_file($cfgPath) ?: []) : [];
+    // Merge with existing parsed values; write clean key=value only — no comments.
+    $existing = file_exists($cfgPath) ? dockerNetworksSettingsLoadCfg($cfgPath) : [];
     if (empty($existing) && file_exists($defaultCfgPath)) {
-        $existing = @parse_ini_file($defaultCfgPath) ?: [];
+        $existing = dockerNetworksSettingsLoadCfg($defaultCfgPath);
     }
     $existing['MENU_LOCATION'] = $requested;
 
-    // Write clean key=value pairs only — no comments, safe for parse_ini_file on all PHP versions.
     $lines = [];
-    foreach ($existing as $key => $value) {
-        $lines[] = $key . '="' . addcslashes((string)$value, '"\\') . '"';
+    foreach ($existing as $k => $v) {
+        $lines[] = $k . '="' . addcslashes((string)$v, '"\\') . '"';
     }
-    $updated = implode("\n", $lines) . "\n";
 
-    if (@file_put_contents($cfgPath, $updated) !== false) {
+    if (@file_put_contents($cfgPath, implode("\n", $lines) . "\n") !== false) {
         $currentLocation = $requested;
-        $statusMessage = 'Settings saved. Refresh the browser to see menu placement change.';
-        $statusClass = 'notice success';
+        $statusMsg = 'Settings saved. Refresh the browser to apply the new menu placement.';
     } else {
-        $statusMessage = 'Unable to write config file: ' . htmlspecialchars($cfgPath, ENT_QUOTES, 'UTF-8');
-        $statusClass = 'notice error';
+        $statusType = 'error';
+        $statusMsg  = 'Could not write config: ' . htmlspecialchars($cfgPath, ENT_QUOTES, 'UTF-8');
     }
 }
 ?>
-<div class="docker-networks-settings" style="max-width:760px;">
-  <h2>Docker Networks Settings</h2>
 
-  <?php if ($statusMessage !== ''): ?>
-    <div class="<?= $statusClass ?>" style="margin:10px 0; padding:10px; border-radius:4px;">
-      <?= htmlspecialchars($statusMessage, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-  <?php endif; ?>
-
-  <form method="post" action="">
-    <dl>
-      <dt>Menu Placement:</dt>
-      <dd>
-        <select name="MENU_LOCATION" id="MENU_LOCATION">
-          <option value="Docker" <?= $currentLocation === 'Docker' ? 'selected' : '' ?>>Docker tab (current default)</option>
-          <option value="Tools" <?= $currentLocation === 'Tools' ? 'selected' : '' ?>>Tools tab</option>
-          <option value="Tab" <?= $currentLocation === 'Tab' ? 'selected' : '' ?>>Own top-level tab</option>
-        </select>
-      </dd>
-      <dd style="margin-top:8px; opacity:0.85;">
-        Save then refresh your browser. If Docker service is stopped, the page entry stays hidden.
-      </dd>
-      <dd style="margin-top:16px;">
-        <input type="submit" class="button" value="Save Settings">
-      </dd>
-    </dl>
-  </form>
+<div class="title">
+  <span class="left"><i class="fa fa-sitemap icon"></i>_(Display)_</span>
 </div>
+
+<form method="post" action="" id="dn-settings-form">
+
+  <dl>
+    <dt>_(Menu Placement)_:</dt>
+    <dd>
+      <select name="MENU_LOCATION" id="MENU_LOCATION">
+        <option value="Docker" <?= $currentLocation === 'Docker' ? 'selected' : '' ?>>_(Docker tab)_</option>
+        <option value="Tools"  <?= $currentLocation === 'Tools'  ? 'selected' : '' ?>>_(Tools tab)_</option>
+        <option value="Tab"    <?= $currentLocation === 'Tab'    ? 'selected' : '' ?>>_(Own top-level tab)_</option>
+      </select>
+      <blockquote class="inline_help">
+        Choose where the Docker Networks page appears in the Unraid navigation.
+        After saving, refresh the browser to see the change.<br>
+        The entry is hidden automatically when Docker is stopped.
+      </blockquote>
+    </dd>
+  </dl>
+
+  <dl>
+    <dt></dt>
+    <dd>
+      <input type="submit" value="_(Apply)_" class="orange-button">
+      &nbsp;<span id="dn-status" style="display:none;"></span>
+    </dd>
+  </dl>
+
+</form>
+
+<script>
+(function () {
+  <?php if ($statusMsg !== ''): ?>
+  var msg  = <?= json_encode($statusMsg) ?>;
+  var type = <?= json_encode($statusType) ?>;
+  var el   = document.getElementById('dn-status');
+  if (el) {
+    el.textContent = msg;
+    el.style.color  = (type === 'error') ? 'var(--error-color, #e25555)' : 'var(--success-color, #5cb85c)';
+    el.style.display = 'inline';
+  }
+  <?php endif; ?>
+}());
+</script>
