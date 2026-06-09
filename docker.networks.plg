@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.09.1517">
+<!ENTITY version     "2026.06.09.1519">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "ffd3b6c012dde193bdb8d55084cfa781">
-<!ENTITY pkgBUILD    "1917">
+<!ENTITY packageMD5  "c208776463fac649e2d321d5eeacf466">
+<!ENTITY pkgBUILD    "1919">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,32 +32,9 @@
 >
 
 <CHANGES>
-###2026.06.09.1517
-- Features: add automated changelog generation and update PLG with release notes
-- Features: enhance menu location settings and add new pages for improved UI navigation
-- Bug Fixes: update support link to point to Unraid forums for better user assistance
-- Bug Fixes: update tag retrieval to include only merged tags in release workflow
-- Bug Fixes: remove plugin directory cleanup to prevent unintended data loss
-- Bug Fixes: update redirection for Docker Networks tools to new location
-- Bug Fixes: update routing for Docker Networks tools and add hidden management UI
-- Bug Fixes: enhance plugin installation script with config backup and restore functionality
-- Bug Fixes: update menu location and streamline Docker Networks page redirection
-- Bug Fixes: improve network row rendering and badge alignment in Docker networks page
-- Bug Fixes: update Docker settings page styles for better alignment and presentation
-- Bug Fixes: center align elements in Docker settings form
-- Bug Fixes: add missing directory creation for plugin installation
-- Bug Fixes: refactor configuration loading to sanitize comments and improve error handling
-- Bug Fixes: sanitize comments in configuration file to prevent parsing errors
-- Bug Fixes: rename DockerNetworksTab.page to Networks.page for consistency in routing
-- Bug Fixes: update action-gh-release to version 3 for improved functionality
-- Bug Fixes: update menu type and path for Docker Networks tools navigation
-- Bug Fixes: update launch paths and icon references for consistency across plugin files
-- Bug Fixes: set timezone for versioning and package build timestamps
-- Bug Fixes: restrict workflow trigger paths to specific files for improved accuracy
-- Bug Fixes: update plugin icon from &#x27;fa-network&#x27; to &#x27;network&#x27;
-- Bug Fixes: update GitHub Actions checkout and release action versions for improved stability
-- Chores: remove unused DockerNetworksView and diagnostics files; update routing for tools
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.09.1706...v2026.06.09.1517)
+###2026.06.09.1519
+- Minor updates and improvements
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.09.1517...v2026.06.09.1519)
 </CHANGES>
 
 <FILE Run="/bin/bash">
