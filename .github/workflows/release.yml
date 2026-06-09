@@ -124,6 +124,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Rebase to latest main before editing to avoid pull conflicts
+          # against a dirty tree after commit.
+          git fetch origin main
+          git rebase origin/main
+
           sed -i \
             -e "s|<!ENTITY version.*\".*\"|<!ENTITY version     \"${VERSION}\"|" \
             -e "s|<!ENTITY packageMD5.*\".*\"|<!ENTITY packageMD5  \"${MD5}\"|" \
@@ -131,6 +136,10 @@ jobs:
             docker.networks.plg
 
           git add docker.networks.plg
-          git commit -m "chore: sync PLG for v${VERSION} [no ci]" || echo "No changes to commit"
-          git pull --rebase origin main
-          git push origin main
+          if git diff --cached --quiet; then
+            echo "No PLG changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore: sync PLG for v${VERSION} [no ci]"
+          git push origin HEAD:main
