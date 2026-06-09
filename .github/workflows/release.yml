@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'source/**'
   workflow_dispatch:
 
 permissions:
