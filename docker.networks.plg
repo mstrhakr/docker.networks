@@ -56,6 +56,12 @@ done
 
 <FILE Run="/bin/bash">
 <INLINE>
+mkdir -p /boot/config/plugins/&name;
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE>
 echo ""
 echo "----------------------------------------------------"
 echo ""
