@@ -1,5 +1,15 @@
 <?php
 $cardName = 'docker-networks';
+$cfgPath = '/boot/config/plugins/docker.networks/docker.networks.cfg';
+$cfg = file_exists($cfgPath) ? (@parse_ini_file($cfgPath) ?: []) : [];
+$menuLocation = strtolower(trim((string)($cfg['MENU_LOCATION'] ?? 'docker')));
+
+$openPath = '/Docker/DockerNetworks';
+if ($menuLocation === 'tools') {
+  $openPath = '/Tools/DockerNetworks';
+} elseif ($menuLocation === 'tab') {
+  $openPath = '/DockerNetworks';
+}
 
 $mytiles[$cardName]['column1'] = <<<EOT
 <tbody title="Docker Networks">
@@ -14,7 +24,7 @@ $mytiles[$cardName]['column1'] = <<<EOT
           </div>
         </div>
         <div class='tile-header-right-controls'>
-          <a id='{$cardName}-open-button' href='/Docker/DockerNetworks' title='_(Open)_'><i class='fa fa-fw fa-external-link control'></i></a>
+          <a id='{$cardName}-open-button' href='{$openPath}' title='_(Open)_'><i class='fa fa-fw fa-external-link control'></i></a>
         </div>
       </div>
     </td>

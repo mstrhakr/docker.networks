@@ -1,10 +1,10 @@
 Author="mstrhakr"
 Type="php"
-Menu="Docker:2"
+Menu="Tools:0"
 Lock="true"
 Nchan="docker_load"
-Cond="$var['fsState'] == 'Started' && exec('/etc/rc.d/rc.docker status | grep -v \"not\"') && (!file_exists('/boot/config/plugins/docker.networks/docker.networks.cfg') ? true : exec(\"grep '^MENU_LOCATION=' /boot/config/plugins/docker.networks/docker.networks.cfg 2>/dev/null | grep -Ei '\\\"?Docker\\\"?$'\"))"
-Title="Networks"
+Cond="$var['fsState'] == 'Started' && exec('/etc/rc.d/rc.docker status | grep -v \"not\"') && exec(\"grep '^MENU_LOCATION=' /boot/config/plugins/docker.networks/docker.networks.cfg 2>/dev/null | grep -Ei '\\\"?Tools\\\"?$'\")"
+Title="Docker Networks"
 Icon="fa-network-wired"
 ---
 <?php

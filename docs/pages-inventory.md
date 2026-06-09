@@ -4,11 +4,20 @@
 
 - `DockerNetworks.page`
   - Route: `Docker/DockerNetworks`.
-  - Purpose: primary network management UI as a Docker tab (`Menu="Docker:2"`, `Type="php"`, `Nchan="docker_load"`).
+  - Purpose: primary network management UI when `MENU_LOCATION=Docker` (`Menu="Docker:2"`, `Type="php"`, `Nchan="docker_load"`).
   - Pattern: stub page loading CSS/JS + include fragment.
+- `DockerNetworksTools.page`
+  - Route: `Tools/DockerNetworks`.
+  - Purpose: same network manager UI when `MENU_LOCATION=Tools`.
+- `DockerNetworksTab.page`
+  - Route: `DockerNetworks`.
+  - Purpose: same network manager UI when `MENU_LOCATION=Tab` as its own top-level tab.
+- `docker.networks.settings.page`
+  - Route: `Settings/docker.networks.settings`.
+  - Purpose: plugin settings for menu location preference.
 - `DockerNetwork-Dashboard.page`
   - Route: dashboard tile.
-  - Purpose: quick visibility and launch link.
+  - Purpose: quick visibility and launch link (route follows menu location setting).
   - Pattern: stub page loading include fragment.
 
 ## Supporting UI Files (Now Split)
@@ -22,12 +31,6 @@
 
 ## Proposed Next Pages
 
-- `docker.networks.settings.page`
-  - Route: `Settings/docker.networks.settings`
-  - Purpose: plugin settings (menu location, refresh interval, dashboard tile toggle, debug flags).
-- `DockerNetworksTools.page` (or conditional menu variant)
-  - Route candidate: `Tools/DockerNetworks`
-  - Purpose: optional Tools placement while keeping Docker placement available.
 - `DockerNetworksDiagnostics.page` (optional)
   - Route candidate: `Tools/DockerNetworksDiagnostics`
   - Purpose: quick diagnostics/log viewer for API and network state.
