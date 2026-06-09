@@ -1,0 +1,66 @@
+name: "Build and Release"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli shellcheck
+
+      - name: Compute release version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_number_padded=$(printf '%04d' "${GITHUB_RUN_NUMBER}")
+          version="$(date -u +'%Y.%m.%d').${run_number_padded}"
+          tag="v${version}"
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+          echo "Using version: ${version}"
+          echo "Using tag: ${tag}"
+
+      - name: Build package
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x build.sh build_in_docker.sh test.sh source/pkg_build.sh
+          ./build.sh -Version "${{ steps.meta.outputs.version }}"
+
+      - name: Verify artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lah archive
+          test -f archive/docker.networks.plg
+          compgen -G "archive/docker.networks-*-noarch-*.txz" > /dev/null
+
+      - name: Publish GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          generateReleaseNotes: true
+          allowUpdates: true
+          replacesArtifacts: true
+          artifactErrorsFailBuild: true
+          artifacts: |
+            archive/docker.networks.plg
+            archive/docker.networks-*-noarch-*.txz
