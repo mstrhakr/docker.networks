@@ -11,6 +11,13 @@ permissions:
 
 jobs:
   build-and-release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.actor != 'github-actions[bot]' &&
+        !contains(github.event.head_commit.message, '[no ci]') &&
+        !contains(github.event.head_commit.message, '[skip ci]')
+      )
     runs-on: ubuntu-latest
 
     steps:
@@ -51,15 +58,77 @@ jobs:
           test -f archive/docker.networks.plg
           compgen -G "archive/docker.networks-*-noarch-*.txz" > /dev/null
 
+      - name: Collect package metadata
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_path=$(ls -1 archive/docker.networks-*-noarch-*.txz | head -n1)
+          package_file=$(basename "$package_path")
+          package_md5=$(md5sum "$package_path" | awk '{print $1}')
+
+          # Expected format: docker.networks-<version>-noarch-<build>.txz
+          package_build=$(echo "$package_file" | sed -E 's/^docker\.networks-[^-]+-noarch-([0-9]+)\.txz$/\1/')
+          if [[ -z "$package_build" || "$package_build" == "$package_file" ]]; then
+            package_build=$(date -u +'%H%M')
+          fi
+
+          echo "file=$package_file" >> "$GITHUB_OUTPUT"
+          echo "md5=$package_md5" >> "$GITHUB_OUTPUT"
+          echo "build=$package_build" >> "$GITHUB_OUTPUT"
+
+          echo "Package: $package_file"
+          echo "MD5: $package_md5"
+          echo "Build: $package_build"
+
       - name: Publish GitHub release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.meta.outputs.tag }}
           name: ${{ steps.meta.outputs.tag }}
-          generateReleaseNotes: true
+          body: |
+            ## Docker Networks v${{ steps.meta.outputs.version }}
+
+            ### Manual Install
+
+            **Via Unraid Plugin Manager (Install Plugin):**
+            ```
+            https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg
+            ```
+
+            **Via CLI:**
+            ```
+            installplg https://raw.githubusercontent.com/${{ github.repository }}/main/docker.networks.plg
+            ```
+
+            ### Release Assets
+            - `docker.networks.plg`
+            - `docker.networks-*-noarch-*.txz`
           allowUpdates: true
           replacesArtifacts: true
           artifactErrorsFailBuild: true
           artifacts: |
             archive/docker.networks.plg
             archive/docker.networks-*-noarch-*.txz
+
+      - name: Sync root PLG with release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.meta.outputs.version }}"
+          BUILD="${{ steps.pkg.outputs.build }}"
+          MD5="${{ steps.pkg.outputs.md5 }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          sed -i \
+            -e "s|<!ENTITY version.*\".*\"|<!ENTITY version     \"${VERSION}\"|" \
+            -e "s|<!ENTITY packageMD5.*\".*\"|<!ENTITY packageMD5  \"${MD5}\"|" \
+            -e "s|<!ENTITY pkgBUILD.*\".*\"|<!ENTITY pkgBUILD    \"${BUILD}\"|" \
+            docker.networks.plg
+
+          git add docker.networks.plg
+          git commit -m "chore: sync PLG for v${VERSION} [no ci]" || echo "No changes to commit"
+          git pull --rebase origin main
+          git push origin main
