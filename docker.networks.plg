@@ -26,7 +26,7 @@
          pluginURL="&pluginURL;"
          icon="sitemap"
          min="7.0"
-         support="https://github.com/mstrhakr/docker.networks/issues"
+         support="https://forums.unraid.net/topic/199371-plugin-docker-network-manager/"
          project="https://github.com/mstrhakr/docker.networks"
          readme="https://github.com/mstrhakr/docker.networks#readme"
 >
