@@ -18,14 +18,11 @@ chmod +x "$tmpdir/usr/local/emhttp/plugins/$name/include/Exec.php" || true
 
 mkdir -p "$tmpdir/install"
 cat > "$tmpdir/install/slack-desc" << 'EOF'
-              |-----handy-ruler------------------------------------------------------|
 docker.networks: docker.networks
 docker.networks:
 docker.networks: Unraid plugin to manage custom docker networks.
 docker.networks: Create, inspect, and remove networks from the web UI.
-docker.networks: Includes API endpoints for network actions.
-docker.networks:
-docker.networks: Supports stable package/deploy workflow.
+docker.networks: Includes API endpoints for docker network actions.
 docker.networks:
 docker.networks: https://github.com/mstrhakr/docker.networks
 docker.networks:
