@@ -1,18 +1,13 @@
 Author="mstrhakr"
 Type="xmenu"
-Menu="Tools"
+Menu="Main:62"
 Lock="true"
 Nchan="docker_load"
 Cond="$var['fsState'] == 'Started' && exec('/etc/rc.d/rc.docker status | grep -v \"not\"') && exec(\"grep '^MENU_LOCATION=' /boot/config/plugins/docker.networks/docker.networks.cfg 2>/dev/null | grep -Ei '\\\"?Tools\\\"?$'\")"
 Title="Docker Networks"
 Icon="sitemap"
-Tag="sitemap"
 ---
 <?php
-require_once '/usr/local/emhttp/plugins/dynamix/include/Helpers.php';
-require_once '/usr/local/emhttp/plugins/dynamix/include/Wrappers.php';
+header('Location: /Networks');
+exit;
 ?>
-<link type="text/css" rel="stylesheet" href="<?php autov('/plugins/docker.networks/sheets/DockerNetworks.css'); ?>">
-<script src="<?php autov('/plugins/docker.networks/javascript/logger.js'); ?>" type="text/javascript"></script>
-<script src="<?php autov('/plugins/docker.networks/javascript/dockerNetworksPage.js'); ?>" type="text/javascript"></script>
-<?php include '/usr/local/emhttp/plugins/docker.networks/include/DockerNetworksPage.php'; ?>
