@@ -9,6 +9,19 @@ if (!function_exists('dockerNetworksLoadCfg')) {
         if (!is_file($cfgPath)) {
             return [];
         }
+
+        // parse_ini_file on PHP 7+ does not support '#' comments (only ';').
+        // Strip '#' comment lines before parsing so a legacy cfg does not cause
+        // a fatal ini syntax error that poisons the JSON response.
+        $raw = file_get_contents($cfgPath);
+        if ($raw !== false) {
+            $sanitized = preg_replace('/^#[^\n]*(\n|$)/m', '', (string)$raw);
+            $cfg = @parse_ini_string((string)$sanitized, false, INI_SCANNER_RAW);
+            if (is_array($cfg)) {
+                return $cfg;
+            }
+        }
+
         $cfg = @parse_ini_file($cfgPath, false, INI_SCANNER_RAW);
         return is_array($cfg) ? $cfg : [];
     }

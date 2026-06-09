@@ -25,20 +25,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $requested = 'Docker';
     }
 
-    $contents = '';
-    if (file_exists($cfgPath)) {
-        $contents = file_get_contents($cfgPath);
+    // Read existing cfg values (parsed, no comments) then merge with new value.
+    $existing = file_exists($cfgPath) ? (@parse_ini_file($cfgPath) ?: []) : [];
+    if (empty($existing) && file_exists($defaultCfgPath)) {
+        $existing = @parse_ini_file($defaultCfgPath) ?: [];
     }
-    if (!is_string($contents) || $contents === '') {
-        $contents = file_exists($defaultCfgPath) ? (string)file_get_contents($defaultCfgPath) : '';
-    }
+    $existing['MENU_LOCATION'] = $requested;
 
-    if ($contents !== '' && preg_match('/^MENU_LOCATION=.*$/m', $contents)) {
-        $updated = preg_replace('/^MENU_LOCATION=.*$/m', 'MENU_LOCATION="' . $requested . '"', $contents);
-    } else {
-        $suffix = ($contents !== '' && substr($contents, -1) !== "\n") ? "\n" : '';
-        $updated = $contents . $suffix . 'MENU_LOCATION="' . $requested . '"' . "\n";
+    // Write clean key=value pairs only — no comments, safe for parse_ini_file on all PHP versions.
+    $lines = [];
+    foreach ($existing as $key => $value) {
+        $lines[] = $key . '="' . addcslashes((string)$value, '"\\') . '"';
     }
+    $updated = implode("\n", $lines) . "\n";
 
     if (@file_put_contents($cfgPath, $updated) !== false) {
         $currentLocation = $requested;
