@@ -5,7 +5,7 @@
   var refreshMs = (window.dockerNetworksRefreshInterval || 30) * 1000;
   var userNetworksPersist = !!window.dockerNetworksUserNetworksPersist;
   var xmlTemplatePersist = !!window.dockerNetworksXmlTemplatePersist;
-  var dockerSettingsUrl = window.dockerNetworksSettingsUrl || '/Settings/Docker';
+  var dockerSettingsUrl = window.dockerNetworksSettingsUrl || '/Settings/DockerSettings';
   var pluginSettingsUrl = window.dockerNetworksPluginSettingsUrl || '/Settings/docker.networks.settings';
   var allContainers = [];
   var currentNetwork = null;

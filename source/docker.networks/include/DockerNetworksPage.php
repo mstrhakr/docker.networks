@@ -39,7 +39,7 @@ window.dockerNetworksApiUrl = '/plugins/docker.networks/include/Exec.php';
 window.dockerNetworksRefreshInterval = <?= (int)$refreshInterval ?>;
 window.dockerNetworksUserNetworksPersist = <?= $userNetworksPersist ? 'true' : 'false' ?>;
 window.dockerNetworksXmlTemplatePersist = <?= $xmlTemplatePersist ? 'true' : 'false' ?>;
-window.dockerNetworksSettingsUrl = '/Settings/Docker';
+window.dockerNetworksSettingsUrl = '/Settings/DockerSettings';
 window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
 </script>
 
