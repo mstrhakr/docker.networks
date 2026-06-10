@@ -160,7 +160,7 @@
 
     $.post(apiBase, requestBody, onSuccess, 'json').fail(function (xhr, status, error) {
       logClient('API call failed', { action: action, status: status, error: error, response: xhr && xhr.responseText ? xhr.responseText : '' }, 'error', 'api');
-      showMessage('Error: ' + error, true);
+      showActionResult('API Error', '<div class="swal-text-block">Error: ' + escapeHtml(error) + '</div>', false);
     });
   }
 
@@ -349,7 +349,7 @@
     }).catch(function (err) {
       allContainers = [];
       logClient('Load containers failed', { error: String(err) }, 'error', 'api');
-      showMessage('Unable to load containers: ' + err, true);
+      showActionResult('Load Failed', '<div class="swal-text-block">Unable to load containers: ' + escapeHtml(String(err)) + '</div>', false);
     });
   }
 
@@ -391,7 +391,7 @@
       return data;
     }).catch(function (err) {
       logClient('Load networks failed', { error: String(err) }, 'error', 'api');
-      showMessage(String(err), true);
+      showActionResult('Load Failed', '<div class="swal-text-block">' + escapeHtml(String(err)) + '</div>', false);
       throw err;
     }).finally(function () {
       if (settings.showLoading) {
@@ -517,13 +517,13 @@
 
   function connectSelectedContainer() {
     if (!currentNetwork || !currentNetwork.Id) {
-      showMessage('No selected network', true);
+      showActionResult('Error', '<div class="swal-text-block">No selected network</div>', false);
       return;
     }
 
     var containerId = $('#connectContainerSelect').val();
     if (!containerId) {
-      showMessage('Select a container to connect', true);
+      showActionResult('Error', '<div class="swal-text-block">Select a container to connect</div>', false);
       return;
     }
 
@@ -539,7 +539,7 @@
     if (ipAddress !== '') {
       var validation = validateIpAddress(ipAddress);
       if (!validation.valid) {
-        showMessage('Invalid IP address: ' + validation.error, true);
+        showActionResult('Invalid IP Address', '<div class="swal-text-block">' + escapeHtml(validation.error) + '</div>', false);
         logClient('IP validation failed', { ip: ipAddress, error: validation.error }, 'warn', 'ui');
         return;
       }
@@ -563,7 +563,6 @@
     apiCall('connect', payload, function (data) {
       if (!data.success) {
         var errorMsg = data.error || 'Failed to connect container';
-        showMessage(errorMsg, true);
         showActionResult('Connection Failed', '<div class="swal-text-block">' + escapeHtml(errorMsg) + '</div>', false);
         logClient('Connect container failed', { error: errorMsg, containerId: containerId, state: selectedContainer ? selectedContainer.state : 'unknown' }, 'error', 'network');
         return;
@@ -576,16 +575,17 @@
         message = 'Template updated—container will join network on startup';
       }
 
+      var successMsg = '<div class="swal-text-block">' + escapeHtml(message) + '</div>';
       if (data.warning) {
-        showMessage(data.warning, true);
-      } else {
-        showMessage(message, false);
+        successMsg += '<br><span style="color: #ff9800;">' + escapeHtml(data.warning) + '</span>';
       }
 
       // Clear IP input after successful connection
       $('#connectContainerIpInput').val('');
 
-      reloadDataAndRefreshManageModal();
+      showActionResult('Connected', successMsg, true, function () {
+        reloadDataAndRefreshManageModal();
+      });
     });
   }
 
@@ -666,14 +666,15 @@
     apiCall('delete', { id: id }, function (data) {
       if (data.success) {
         logClient('Network deleted', { id: id, name: name }, 'info', 'network');
-        showMessage('Network deleted successfully', false);
-        if (currentNetwork && currentNetwork.Id === id) {
-          closeManageModal();
-        }
-        loadNetworks({ refreshContainers: false });
+        showActionResult('Deleted', '<div class="swal-text-block">Network deleted successfully</div>', true, function () {
+          if (currentNetwork && currentNetwork.Id === id) {
+            closeManageModal();
+          }
+          loadNetworks({ refreshContainers: false });
+        });
       } else {
         logClient('Network delete failed', { id: id, error: data.error }, 'error', 'network');
-        showMessage(data.error || 'Failed to delete network', true);
+        showActionResult('Delete Failed', '<div class="swal-text-block">' + escapeHtml(data.error || 'Failed to delete network') + '</div>', false);
       }
     });
   }
@@ -681,7 +682,7 @@
   function reloadDataAndRefreshManageModal() {
     setManageLoading(true);
     loadNetworks({ refreshContainers: true }).catch(function (err) {
-      showMessage(String(err), true);
+      showActionResult('Refresh Failed', '<div class="swal-text-block">' + escapeHtml(String(err)) + '</div>', false);
     }).finally(function () {
       setManageLoading(false);
     });
@@ -698,12 +699,13 @@
     apiCall('create', payload, function (data) {
       if (data.success) {
         logClient('Network created', { payload: payload, id: data.id }, 'info', 'network');
-        showMessage('Network created successfully', false);
-        closeCreateModal();
-        loadNetworks({ refreshContainers: false });
+        showActionResult('Created', '<div class="swal-text-block">Network created successfully</div>', true, function () {
+          closeCreateModal();
+          loadNetworks({ refreshContainers: false });
+        });
       } else {
         logClient('Network create failed', { payload: payload, error: data.error }, 'error', 'network');
-        showMessage(data.error || 'Failed to create network', true);
+        showActionResult('Create Failed', '<div class="swal-text-block">' + escapeHtml(data.error || 'Failed to create network') + '</div>', false);
       }
     });
   }
@@ -718,12 +720,13 @@
     apiCall('update', payload, function (data) {
       if (data.success) {
         logClient('Network updated', { id: payload.id }, 'info', 'network');
-        showMessage('Network updated', false);
-        closeEditModal();
-        loadNetworks({ refreshContainers: false });
+        showActionResult('Updated', '<div class="swal-text-block">Network updated</div>', true, function () {
+          closeEditModal();
+          loadNetworks({ refreshContainers: false });
+        });
       } else {
         logClient('Network update failed', { id: payload.id, error: data.error }, 'error', 'network');
-        showMessage(data.error || 'Failed to update network', true);
+        showActionResult('Update Failed', '<div class="swal-text-block">' + escapeHtml(data.error || 'Failed to update network') + '</div>', false);
       }
     });
   }
