@@ -75,7 +75,7 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
 
 <div class="docker-networks-actions">
   <button class="button orange-button" id="btnCreateNetwork" type="button">+ Create Network</button>
-  <button class="button orange-button" id="btnRefreshNetworks" type="button">Refresh</button>
+  <button class="button" id="btnRefreshNetworks" type="button">Refresh</button>
   <button class="button" id="btnPluginSettings" type="button">Settings</button>
 </div>
 

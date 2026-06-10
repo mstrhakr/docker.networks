@@ -291,9 +291,9 @@
     row.append($('<td></td>').text(String(networkContainerCount(net))));
 
     var actions = $('<td class="network-actions"></td>');
-    actions.append(createActionButton('Edit', 'button orange-button', function () { openEditModal(net); }));
-    actions.append(createActionButton('Manage', 'button orange-button', function () { openManageModal(net); }));
-    actions.append(createActionButton('Delete', 'button docker-networks-danger-button', function () { deleteNetwork(net.Id, net.Name, !!net.IsProtected, net.ProtectionLabel); }, !!net.IsProtected));
+    actions.append(createActionButton('Edit', 'button', function () { openEditModal(net); }));
+    actions.append(createActionButton('Manage', 'button', function () { openManageModal(net); }));
+    actions.append(createActionButton('Delete', 'button orange-button', function () { deleteNetwork(net.Id, net.Name, !!net.IsProtected, net.ProtectionLabel); }, !!net.IsProtected));
 
     row.append(actions);
   }
