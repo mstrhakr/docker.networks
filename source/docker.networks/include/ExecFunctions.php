@@ -496,6 +496,7 @@ function dockerNetworksHandleConnectContainer(array $request): void
 {
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
     $containerId = isset($request['containerId']) ? trim((string) $request['containerId']) : '';
+    $containerNameHint = isset($request['containerName']) ? trim((string) $request['containerName']) : '';
     $ipAddress = isset($request['ipAddress']) ? trim((string) $request['ipAddress']) : '';
     $containerState = isset($request['containerState']) ? strtolower(trim((string) $request['containerState'])) : '';
 
@@ -504,9 +505,15 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
-    $containerName = dockerNetworksResolveContainerName($containerId);
+    $containerRef = $containerId;
+    $containerName = dockerNetworksResolveContainerName($containerRef);
+    if ($containerName === '' && $containerNameHint !== '') {
+        $containerRef = $containerNameHint;
+        $containerName = dockerNetworksResolveContainerName($containerRef);
+    }
+
     if ($containerName === '') {
-        dockerNetworksRespond(['success' => false, 'error' => 'Container not found'], 404);
+        dockerNetworksRespond(['success' => false, 'error' => 'Container not found (it may have been removed or renamed). Refresh and try again.'], 404);
         return;
     }
 
@@ -516,31 +523,37 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
-    // Check if container is stopped
-    $isContainerRunning = $containerState !== 'exited' && $containerState !== 'created' && $containerState !== '';
+    // Trust docker inspect state over client-provided state when available.
+    $resolvedState = dockerNetworksResolveContainerState($containerRef);
+    if ($resolvedState !== '') {
+        $containerState = $resolvedState;
+    }
+
+    // Only "running" should use direct docker network connect.
+    $isContainerRunning = ($containerState === 'running');
     $isPersistenceEnabled = dockerNetworksIsTemplatePersistenceEnabled();
 
     if (!$isContainerRunning) {
         // Container is stopped
         if (!$isPersistenceEnabled) {
-            dockerNetworksLogger('Connect failed: container stopped, persistence disabled', ['containerId' => $containerId, 'state' => $containerState], 'user', 'error', 'exec');
+            dockerNetworksLogger('Connect failed: container stopped, persistence disabled', ['containerId' => $containerId, 'containerRef' => $containerRef, 'state' => $containerState], 'user', 'error', 'exec');
             dockerNetworksRespond(['success' => false, 'error' => 'Container must be running to connect directly. Enable template XML persistence in Docker Networks settings to connect stopped containers.'], 400);
             return;
         }
 
         // Persistence is enabled; skip docker network connect and go straight to template update
-        dockerNetworksLogger('Container is stopped, skipping direct connection (persistence enabled)', ['containerId' => $containerId, 'containerName' => $containerName, 'state' => $containerState], 'user', 'info', 'exec');
+        dockerNetworksLogger('Container is stopped, skipping direct connection (persistence enabled)', ['containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'state' => $containerState], 'user', 'info', 'exec');
 
         $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, true);
         
         if (!$persist['persisted']) {
             $message = $persist['warning'] ?: 'Failed to update template XML.';
-            dockerNetworksLogger('Template persistence failed for stopped container', ['containerId' => $containerId, 'containerName' => $containerName], 'user', 'error', 'exec');
+            dockerNetworksLogger('Template persistence failed for stopped container', ['containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName], 'user', 'error', 'exec');
             dockerNetworksRespond(['success' => false, 'error' => $message], 500);
             return;
         }
 
-        dockerNetworksLogger('Container template updated', ['containerId' => $containerId, 'containerName' => $containerName, 'networkName' => $networkName], 'user', 'info', 'exec');
+        dockerNetworksLogger('Container template updated', ['containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'networkName' => $networkName], 'user', 'info', 'exec');
         dockerNetworksRespond(['success' => true, 'message' => 'Template updated—network will connect on startup', 'ipAddress' => 'pending', 'persisted' => true, 'warning' => 'This stopped container will join the network when it starts.']);
         return;
     }
@@ -582,12 +595,12 @@ function dockerNetworksHandleConnectContainer(array $request): void
     if ($ipAddress !== '') {
         $cmd .= ' --ip ' . escapeshellarg($ipAddress);
     }
-    $cmd .= ' ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerId);
+    $cmd .= ' ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerRef);
 
     $result = dockerNetworksRun($cmd);
 
     if ($result['exitCode'] !== 0) {
-        dockerNetworksLogger('Connect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'output' => $result['output']], 'user', 'error', 'exec');
+        dockerNetworksLogger('Connect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $result['output']], 'user', 'error', 'exec');
         dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to connect container'], 500);
         return;
     }
@@ -600,7 +613,7 @@ function dockerNetworksHandleConnectContainer(array $request): void
         ];
     
     $assignedIp = $ipAddress ?: 'auto-assigned';
-    dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'ipAddress' => $assignedIp, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+    dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'ipAddress' => $assignedIp, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
 
     dockerNetworksRespond([
         'success' => true,
@@ -616,15 +629,22 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
 {
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
     $containerId = isset($request['containerId']) ? trim((string) $request['containerId']) : '';
+    $containerNameHint = isset($request['containerName']) ? trim((string) $request['containerName']) : '';
 
     if ($networkId === '' || $containerId === '') {
         dockerNetworksRespond(['success' => false, 'error' => 'Network ID and Container ID are required'], 400);
         return;
     }
 
-    $containerName = dockerNetworksResolveContainerName($containerId);
+    $containerRef = $containerId;
+    $containerName = dockerNetworksResolveContainerName($containerRef);
+    if ($containerName === '' && $containerNameHint !== '') {
+        $containerRef = $containerNameHint;
+        $containerName = dockerNetworksResolveContainerName($containerRef);
+    }
+
     if ($containerName === '') {
-        dockerNetworksRespond(['success' => false, 'error' => 'Container not found'], 404);
+        dockerNetworksRespond(['success' => false, 'error' => 'Container not found (it may have been removed or renamed). Refresh and try again.'], 404);
         return;
     }
 
@@ -635,14 +655,14 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
     }
 
     // Get current IP and network count before disconnect
-    $currentIp = dockerNetworksGetContainerNetworkIp($containerId, $networkId);
-    $networkCount = dockerNetworksGetContainerNetworkCount($containerId);
+    $currentIp = dockerNetworksGetContainerNetworkIp($containerRef, $networkId);
+    $networkCount = dockerNetworksGetContainerNetworkCount($containerRef);
     $isOnlyNetwork = $networkCount <= 1;
 
-    $result = dockerNetworksRun('docker network disconnect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerId));
+    $result = dockerNetworksRun('docker network disconnect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerRef));
 
     if ($result['exitCode'] !== 0) {
-        dockerNetworksLogger('Disconnect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'output' => $result['output']], 'user', 'error', 'exec');
+        dockerNetworksLogger('Disconnect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $result['output']], 'user', 'error', 'exec');
         dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to disconnect container'], 500);
         return;
     }
@@ -659,7 +679,7 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
         $warning = 'Warning: This was the container\'s only network attachment. It may now be unreachable.';
     }
 
-    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'ip' => $currentIp, 'wasOnlyNetwork' => $isOnlyNetwork, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'ip' => $currentIp, 'wasOnlyNetwork' => $isOnlyNetwork, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
 
     dockerNetworksRespond([
         'success' => true,
@@ -676,8 +696,8 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
 function dockerNetworksHandleListContainers(): void
 {
     $psCommand = dockerNetworksIsTemplatePersistenceEnabled()
-        ? "docker ps -a --format='{{json .}}'"
-        : "docker ps --format='{{json .}}'";
+        ? "docker ps -a --no-trunc --format='{{json .}}'"
+        : "docker ps --no-trunc --format='{{json .}}'";
 
     $result = dockerNetworksRun($psCommand);
     if ($result['exitCode'] !== 0) {
@@ -711,17 +731,37 @@ function dockerNetworksHandleListContainers(): void
 
 function dockerNetworksResolveContainerName(string $containerId): string
 {
-    $result = dockerNetworksRun('docker inspect --format={{json .Name}} ' . escapeshellarg($containerId));
-    if ($result['exitCode'] !== 0) {
+    $container = dockerNetworksInspectContainer($containerId);
+    if (!is_array($container) || !isset($container['Name'])) {
         return '';
+    }
+
+    return ltrim((string) $container['Name'], '/');
+}
+
+function dockerNetworksResolveContainerState(string $containerRef): string
+{
+    $container = dockerNetworksInspectContainer($containerRef);
+    if (!is_array($container) || !isset($container['State']) || !is_array($container['State']) || !isset($container['State']['Status'])) {
+        return '';
+    }
+
+    return strtolower(trim((string) $container['State']['Status']));
+}
+
+function dockerNetworksInspectContainer(string $containerRef): ?array
+{
+    $result = dockerNetworksRun('docker inspect ' . escapeshellarg($containerRef));
+    if ($result['exitCode'] !== 0) {
+        return null;
     }
 
     $decoded = json_decode((string) $result['output'], true);
-    if (!is_string($decoded) || $decoded === '') {
-        return '';
+    if (!is_array($decoded) || !isset($decoded[0]) || !is_array($decoded[0])) {
+        return null;
     }
 
-    return ltrim($decoded, '/');
+    return $decoded[0];
 }
 
 function dockerNetworksResolveNetworkName(string $networkId): string

@@ -207,63 +207,55 @@
     }
 
     if (confirm($('<div>').html(messageHtml).text())) {
-      /**
-       * Show action result modal (success/failure)
-       */
-      function showActionResult(title, messageHtml, isSuccess, onClose) {
-        if (typeof swal === 'function') {
-          swal({
-            title: title,
-            text: messageHtml,
-            html: true,
-            type: isSuccess ? 'success' : 'error',
-            confirmButtonText: 'OK'
-          }, function () {
-            if (onClose) {
-              onClose();
-            }
-          });
-          return;
-        }
+      onConfirm();
+    }
+  }
 
-        alert($('<div>').html(messageHtml).text());
+  function showActionResult(title, messageHtml, isSuccess, onClose) {
+    if (typeof swal === 'function') {
+      swal({
+        title: title,
+        text: messageHtml,
+        html: true,
+        type: isSuccess ? 'success' : 'error',
+        confirmButtonText: 'OK'
+      }, function () {
         if (onClose) {
           onClose();
         }
-      }
+      });
+      return;
+    }
 
-      /**
-       * Show loading modal with message
-       */
-      function showLoadingModal(title, messageHtml) {
-        if (typeof swal === 'function') {
-          swal({
-            title: title,
-            text: messageHtml,
-            html: true,
-            type: 'info',
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            didOpen: function (swalInstance) {
-              swalInstance.hideConfirmButton();
-              var loading = document.createElement('div');
-              loading.className = 'docker-networks-spinner';
-              swalInstance.appendChild(loading);
-            }
-          });
-          return;
-        }
-      }
+    alert($('<div>').html(messageHtml).text());
+    if (onClose) {
+      onClose();
+    }
+  }
 
-      /**
-       * Close the currently open SweetAlert modal
-       */
-      function closeModal() {
-        if (typeof swal === 'function') {
-          swal.close();
+  function showLoadingModal(title, messageHtml) {
+    if (typeof swal === 'function') {
+      swal({
+        title: title,
+        text: messageHtml,
+        html: true,
+        type: 'info',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: function (swalInstance) {
+          swalInstance.hideConfirmButton();
+          var loading = document.createElement('div');
+          loading.className = 'docker-networks-spinner';
+          swalInstance.appendChild(loading);
         }
-      }
-      onConfirm();
+      });
+      return;
+    }
+  }
+
+  function closeModal() {
+    if (typeof swal === 'function') {
+      swal.close();
     }
   }
 
@@ -558,6 +550,9 @@
       networkId: currentNetwork.Id,
       containerId: containerId
     };
+    if (selectedContainer && selectedContainer.name) {
+      payload.containerName = selectedContainer.name;
+    }
     if (ipAddress !== '') {
       payload.ipAddress = ipAddress;
     }
@@ -567,9 +562,9 @@
 
     apiCall('connect', payload, function (data) {
       if (!data.success) {
-        // Show error in a clear way
         var errorMsg = data.error || 'Failed to connect container';
         showMessage(errorMsg, true);
+        showActionResult('Connection Failed', '<div class="swal-text-block">' + escapeHtml(errorMsg) + '</div>', false);
         logClient('Connect container failed', { error: errorMsg, containerId: containerId, state: selectedContainer ? selectedContainer.state : 'unknown' }, 'error', 'network');
         return;
       }
@@ -611,7 +606,12 @@
         function () {
           showLoadingModal('Disconnecting Container', 'Removing network connection...');
 
-          apiCall('disconnect', { networkId: currentNetwork.Id, containerId: containerId }, function (data) {
+          var payload = { networkId: currentNetwork.Id, containerId: containerId };
+          if (containerName) {
+            payload.containerName = containerName;
+          }
+
+          apiCall('disconnect', payload, function (data) {
             closeModal();
 
             if (!data.success) {
