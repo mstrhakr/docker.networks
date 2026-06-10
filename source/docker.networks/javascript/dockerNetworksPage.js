@@ -535,6 +535,11 @@
       return;
     }
 
+    // Find container in allContainers to get its state
+    var selectedContainer = allContainers.find(function (c) {
+      return c.id === containerId;
+    });
+
     // Get IP address input if provided
     var ipAddress = $.trim($('#connectContainerIpInput').val() || '');
 
@@ -555,64 +560,25 @@
     };
     if (ipAddress !== '') {
       payload.ipAddress = ipAddress;
-
-      // Disable button and show loading modal
-      var connectBtn = $('#btnConnectContainer');
-      var originalBtnText = connectBtn.text();
-      connectBtn.prop('disabled', true);
-      showLoadingModal('Connecting Container', 'Establishing network connection...');
-
-      apiCall('connect', payload, function (data) {
-        // Close loading modal
-        closeModal();
-
-        if (!data.success) {
-          logClient('Container connect failed', { error: data.error, container: containerId, network: currentNetwork.Id }, 'error', 'network');
-
-          var errorMsg = '<div class="swal-text-block">';
-          errorMsg += '<strong>Failed to connect container</strong><br>';
-          errorMsg += escapeHtml(data.error || 'Unknown error');
-          errorMsg += '</div>';
-
-          showActionResult('Connection Failed', errorMsg, false, function () {
-            connectBtn.prop('disabled', false);
-          });
-          return;
-        }
-
-        // Build success message
-        var successMsg = '<div class="swal-text-block">';
-        successMsg += '<strong>Container connected successfully</strong>';
-        if (data.ipAddress) {
-          successMsg += '<br>IP Address: <code>' + escapeHtml(data.ipAddress) + '</code>';
-        }
-        if (data.warning) {
-          successMsg += '<br><span style="color: #ff9800;">' + escapeHtml(data.warning) + '</span>';
-        }
-        successMsg += '</div>';
-
-        logClient('Container connected', { container: containerId, network: currentNetwork.Id, ip: data.ipAddress }, 'info', 'network');
-
-        showActionResult('Success', successMsg, true, function () {
-          // Clear IP input after successful connection
-          $('#connectContainerIpInput').val('');
-          connectBtn.prop('disabled', false);
-
-          // Reload network data
-          reloadDataAndRefreshManageModal();
-        });
-      });
+    }
+    if (selectedContainer && selectedContainer.state) {
+      payload.containerState = selectedContainer.state;
     }
 
     apiCall('connect', payload, function (data) {
       if (!data.success) {
-        showMessage(data.error || 'Failed to connect container', true);
+        // Show error in a clear way
+        var errorMsg = data.error || 'Failed to connect container';
+        showMessage(errorMsg, true);
+        logClient('Connect container failed', { error: errorMsg, containerId: containerId, state: selectedContainer ? selectedContainer.state : 'unknown' }, 'error', 'network');
         return;
       }
 
       var message = 'Container connected';
-      if (data.ipAddress) {
+      if (data.ipAddress && data.ipAddress !== 'pending') {
         message += ' (IP: ' + escapeHtml(data.ipAddress) + ')';
+      } else if (data.ipAddress === 'pending') {
+        message = 'Template updated—container will join network on startup';
       }
 
       if (data.warning) {

@@ -497,6 +497,7 @@ function dockerNetworksHandleConnectContainer(array $request): void
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
     $containerId = isset($request['containerId']) ? trim((string) $request['containerId']) : '';
     $ipAddress = isset($request['ipAddress']) ? trim((string) $request['ipAddress']) : '';
+    $containerState = isset($request['containerState']) ? strtolower(trim((string) $request['containerState'])) : '';
 
     if ($networkId === '' || $containerId === '') {
         dockerNetworksRespond(['success' => false, 'error' => 'Network ID and Container ID are required'], 400);
@@ -515,6 +516,36 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
+    // Check if container is stopped
+    $isContainerRunning = $containerState !== 'exited' && $containerState !== 'created' && $containerState !== '';
+    $isPersistenceEnabled = dockerNetworksIsTemplatePersistenceEnabled();
+
+    if (!$isContainerRunning) {
+        // Container is stopped
+        if (!$isPersistenceEnabled) {
+            dockerNetworksLogger('Connect failed: container stopped, persistence disabled', ['containerId' => $containerId, 'state' => $containerState], 'user', 'error', 'exec');
+            dockerNetworksRespond(['success' => false, 'error' => 'Container must be running to connect directly. Enable template XML persistence in Docker Networks settings to connect stopped containers.'], 400);
+            return;
+        }
+
+        // Persistence is enabled; skip docker network connect and go straight to template update
+        dockerNetworksLogger('Container is stopped, skipping direct connection (persistence enabled)', ['containerId' => $containerId, 'containerName' => $containerName, 'state' => $containerState], 'user', 'info', 'exec');
+
+        $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, true);
+        
+        if (!$persist['persisted']) {
+            $message = $persist['warning'] ?: 'Failed to update template XML.';
+            dockerNetworksLogger('Template persistence failed for stopped container', ['containerId' => $containerId, 'containerName' => $containerName], 'user', 'error', 'exec');
+            dockerNetworksRespond(['success' => false, 'error' => $message], 500);
+            return;
+        }
+
+        dockerNetworksLogger('Container template updated', ['containerId' => $containerId, 'containerName' => $containerName, 'networkName' => $networkName], 'user', 'info', 'exec');
+        dockerNetworksRespond(['success' => true, 'message' => 'Template updated—network will connect on startup', 'ipAddress' => 'pending', 'persisted' => true, 'warning' => 'This stopped container will join the network when it starts.']);
+        return;
+    }
+
+    // Container is running; proceed with normal flow
     // Validate IP address if provided
     if ($ipAddress !== '') {
         $ipValidation = dockerNetworksValidateIpAddress($ipAddress);
