@@ -207,6 +207,62 @@
     }
 
     if (confirm($('<div>').html(messageHtml).text())) {
+      /**
+       * Show action result modal (success/failure)
+       */
+      function showActionResult(title, messageHtml, isSuccess, onClose) {
+        if (typeof swal === 'function') {
+          swal({
+            title: title,
+            text: messageHtml,
+            html: true,
+            type: isSuccess ? 'success' : 'error',
+            confirmButtonText: 'OK'
+          }, function () {
+            if (onClose) {
+              onClose();
+            }
+          });
+          return;
+        }
+
+        alert($('<div>').html(messageHtml).text());
+        if (onClose) {
+          onClose();
+        }
+      }
+
+      /**
+       * Show loading modal with message
+       */
+      function showLoadingModal(title, messageHtml) {
+        if (typeof swal === 'function') {
+          swal({
+            title: title,
+            text: messageHtml,
+            html: true,
+            type: 'info',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: function (swalInstance) {
+              swalInstance.hideConfirmButton();
+              var loading = document.createElement('div');
+              loading.className = 'docker-networks-spinner';
+              swalInstance.appendChild(loading);
+            }
+          });
+          return;
+        }
+      }
+
+      /**
+       * Close the currently open SweetAlert modal
+       */
+      function closeModal() {
+        if (typeof swal === 'function') {
+          swal.close();
+        }
+      }
       onConfirm();
     }
   }
@@ -481,7 +537,7 @@
 
     // Get IP address input if provided
     var ipAddress = $.trim($('#connectContainerIpInput').val() || '');
-    
+
     // Validate IP if provided
     if (ipAddress !== '') {
       var validation = validateIpAddress(ipAddress);
@@ -499,6 +555,53 @@
     };
     if (ipAddress !== '') {
       payload.ipAddress = ipAddress;
+
+      // Disable button and show loading modal
+      var connectBtn = $('#btnConnectContainer');
+      var originalBtnText = connectBtn.text();
+      connectBtn.prop('disabled', true);
+      showLoadingModal('Connecting Container', 'Establishing network connection...');
+
+      apiCall('connect', payload, function (data) {
+        // Close loading modal
+        closeModal();
+
+        if (!data.success) {
+          logClient('Container connect failed', { error: data.error, container: containerId, network: currentNetwork.Id }, 'error', 'network');
+
+          var errorMsg = '<div class="swal-text-block">';
+          errorMsg += '<strong>Failed to connect container</strong><br>';
+          errorMsg += escapeHtml(data.error || 'Unknown error');
+          errorMsg += '</div>';
+
+          showActionResult('Connection Failed', errorMsg, false, function () {
+            connectBtn.prop('disabled', false);
+          });
+          return;
+        }
+
+        // Build success message
+        var successMsg = '<div class="swal-text-block">';
+        successMsg += '<strong>Container connected successfully</strong>';
+        if (data.ipAddress) {
+          successMsg += '<br>IP Address: <code>' + escapeHtml(data.ipAddress) + '</code>';
+        }
+        if (data.warning) {
+          successMsg += '<br><span style="color: #ff9800;">' + escapeHtml(data.warning) + '</span>';
+        }
+        successMsg += '</div>';
+
+        logClient('Container connected', { container: containerId, network: currentNetwork.Id, ip: data.ipAddress }, 'info', 'network');
+
+        showActionResult('Success', successMsg, true, function () {
+          // Clear IP input after successful connection
+          $('#connectContainerIpInput').val('');
+          connectBtn.prop('disabled', false);
+
+          // Reload network data
+          reloadDataAndRefreshManageModal();
+        });
+      });
     }
 
     apiCall('connect', payload, function (data) {
@@ -517,75 +620,80 @@
       } else {
         showMessage(message, false);
       }
-      
+
       // Clear IP input after successful connection
       $('#connectContainerIpInput').val('');
-      
+
       reloadDataAndRefreshManageModal();
     });
   }
 
   function disconnectContainer(containerId, containerName) {
-    if (!currentNetwork || !currentNetwork.Id) {
-      showMessage('No selected network', true);
-      return;
-    }
-
-    // Make request first to get connection info
-    requestData('disconnect', { networkId: currentNetwork.Id, containerId: containerId, getInfo: true }).then(function (data) {
-      // This will fail because we're asking for info on a disconnect, so use the handler below
-      // Actually, we should just proceed with confirmation
-      performDisconnect(containerId, containerName);
-    }).catch(function () {
-      // If getInfo fails, just show basic confirmation
-      performDisconnect(containerId, containerName);
-    });
-  }
-
-  function performDisconnect(containerId, containerName) {
-    var confirmHtml = '<div class="swal-text-block">';
-    confirmHtml += 'Disconnect <strong>' + escapeHtml(containerName) + '</strong>';
-    if (currentNetwork && currentNetwork.Name) {
-      confirmHtml += ' from <strong>' + escapeHtml(currentNetwork.Name) + '</strong>';
-    }
-    confirmHtml += '?';
-    confirmHtml += '</div>';
-
-    confirmAction(
-      'Disconnect Container',
-      confirmHtml,
-      'Disconnect',
-      function () {
-        apiCall('disconnect', { networkId: currentNetwork.Id, containerId: containerId }, function (data) {
-          if (!data.success) {
-            showMessage(data.error || 'Failed to disconnect container', true);
-            return;
-          }
-
-          // Build disconnect message with additional context
-          var message = 'Container disconnected';
-          if (data.containerName && data.networkName) {
-            message = escapeHtml(data.containerName) + ' disconnected from ' + escapeHtml(data.networkName);
-          }
-          if (data.ip) {
-            message += ' (was ' + escapeHtml(data.ip) + ')';
-          }
-
-          // Show warning if this was the only network
-          if (data.wasOnlyNetwork) {
-            var warning = 'Warning: This was the container\'s only network attachment. It may now be unreachable.';
-            logClient('Container disconnected from only network', { containerName: data.containerName, ip: data.ip }, 'warn', 'network');
-            showMessage(warning, true);
-          } else if (data.warning) {
-            showMessage(data.warning, true);
-          } else {
-            showMessage(message, false);
-          }
-          
-          reloadDataAndRefreshManageModal();
-        });
+    function performDisconnect(containerId, containerName) {
+      var confirmHtml = '<div class="swal-text-block">';
+      confirmHtml += 'Disconnect <strong>' + escapeHtml(containerName) + '</strong>';
+      if (currentNetwork && currentNetwork.Name) {
+        confirmHtml += ' from <strong>' + escapeHtml(currentNetwork.Name) + '</strong>';
       }
-    );
+      confirmHtml += '?';
+      confirmHtml += '</div>';
+
+      confirmAction(
+        'Disconnect Container',
+        confirmHtml,
+        'Disconnect',
+        function () {
+          showLoadingModal('Disconnecting Container', 'Removing network connection...');
+
+          apiCall('disconnect', { networkId: currentNetwork.Id, containerId: containerId }, function (data) {
+            closeModal();
+
+            if (!data.success) {
+              logClient('Container disconnect failed', { error: data.error, container: containerId, network: currentNetwork.Id }, 'error', 'network');
+
+              var errorMsg = '<div class="swal-text-block">';
+              errorMsg += '<strong>Failed to disconnect container</strong><br>';
+              errorMsg += escapeHtml(data.error || 'Unknown error');
+              errorMsg += '</div>';
+
+              showActionResult('Disconnection Failed', errorMsg, false);
+              return;
+            }
+
+            // Build disconnect message with additional context
+            var resultMsg = '<div class="swal-text-block">';
+
+            if (data.containerName && data.networkName) {
+              resultMsg += '<strong>' + escapeHtml(data.containerName) + '</strong> disconnected from <strong>' + escapeHtml(data.networkName) + '</strong>';
+            } else {
+              resultMsg += '<strong>Container disconnected successfully</strong>';
+            }
+
+            if (data.ip) {
+              resultMsg += '<br>Previous IP: <code>' + escapeHtml(data.ip) + '</code>';
+            }
+
+            // Show warning if this was the only network
+            if (data.wasOnlyNetwork) {
+              resultMsg += '<br><span style="color: #ff5252;"><strong>⚠ This was the container\'s only network attachment. It may now be unreachable.</strong></span>';
+              logClient('Container disconnected from only network', { containerName: data.containerName, ip: data.ip }, 'warn', 'network');
+            } else if (data.warning) {
+              resultMsg += '<br><span style="color: #ff9800;">' + escapeHtml(data.warning) + '</span>';
+            }
+
+            resultMsg += '</div>';
+
+            logClient('Container disconnected', { container: containerId, network: currentNetwork.Id, wasOnlyNetwork: data.wasOnlyNetwork }, 'info', 'network');
+
+            showActionResult('Disconnected', resultMsg, true, function () {
+              reloadDataAndRefreshManageModal();
+            });
+          });
+        }
+      );
+    }
+
+    performDisconnect(containerId, containerName);
   }
 
   function performDeleteNetwork(id, name) {
@@ -643,31 +751,15 @@
 
     apiCall('update', payload, function (data) {
       if (data.success) {
-        logClient('Network updated', { payload: payload }, 'info', 'network');
-        showMessage('Network updated successfully', false);
+        logClient('Network updated', { id: payload.id }, 'info', 'network');
+        showMessage('Network updated', false);
         closeEditModal();
         loadNetworks({ refreshContainers: false });
       } else {
-        logClient('Network update failed', { payload: payload, error: data.error }, 'error', 'network');
+        logClient('Network update failed', { id: payload.id, error: data.error }, 'error', 'network');
         showMessage(data.error || 'Failed to update network', true);
       }
     });
-  }
-
-  function deleteNetwork(id, name, isProtected, protectionLabel) {
-    if (isProtected) {
-      showMessage((protectionLabel || 'Protected') + ' Docker networks cannot be deleted', true);
-      return;
-    }
-
-    confirmAction(
-      'Delete Network',
-      '<div class="swal-text-block">Delete network <strong>"' + escapeHtml(name) + '"</strong>?<br><br>This cannot be undone.</div>',
-      'Delete',
-      function () {
-        performDeleteNetwork(id, name);
-      }
-    );
   }
 
   $(function () {
