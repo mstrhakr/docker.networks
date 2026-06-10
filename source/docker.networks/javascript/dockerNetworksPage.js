@@ -127,6 +127,33 @@
     return div.innerHTML;
   }
 
+  /**
+   * Validate IPv4 address format
+   */
+  function validateIpAddress(ip) {
+    if (ip === '' || ip === null) {
+      return { valid: true, error: '' }; // empty is OK (auto-assign)
+    }
+
+    // IPv4 validation regex
+    var ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    var match = String(ip).trim().match(ipv4Regex);
+    if (!match) {
+      return { valid: false, error: 'Invalid IP address format' };
+    }
+
+    // Validate each octet is 0-255
+    for (var i = 1; i <= 4; i++) {
+      var octet = parseInt(match[i], 10);
+      if (octet < 0 || octet > 255) {
+        return { valid: false, error: 'IP octets must be between 0 and 255' };
+      }
+    }
+
+    return { valid: true, error: '' };
+  }
+
+
   function apiCall(action, payload, onSuccess) {
     var requestBody = payload || {};
     requestBody.action = action;
@@ -452,17 +479,48 @@
       return;
     }
 
-    apiCall('connect', { networkId: currentNetwork.Id, containerId: containerId }, function (data) {
+    // Get IP address input if provided
+    var ipAddress = $.trim($('#connectContainerIpInput').val() || '');
+    
+    // Validate IP if provided
+    if (ipAddress !== '') {
+      var validation = validateIpAddress(ipAddress);
+      if (!validation.valid) {
+        showMessage('Invalid IP address: ' + validation.error, true);
+        logClient('IP validation failed', { ip: ipAddress, error: validation.error }, 'warn', 'ui');
+        return;
+      }
+      logClient('IP address provided', { ip: ipAddress }, 'debug', 'ui');
+    }
+
+    var payload = {
+      networkId: currentNetwork.Id,
+      containerId: containerId
+    };
+    if (ipAddress !== '') {
+      payload.ipAddress = ipAddress;
+    }
+
+    apiCall('connect', payload, function (data) {
       if (!data.success) {
         showMessage(data.error || 'Failed to connect container', true);
         return;
       }
 
+      var message = 'Container connected';
+      if (data.ipAddress) {
+        message += ' (IP: ' + escapeHtml(data.ipAddress) + ')';
+      }
+
       if (data.warning) {
         showMessage(data.warning, true);
       } else {
-        showMessage('Container connected', false);
+        showMessage(message, false);
       }
+      
+      // Clear IP input after successful connection
+      $('#connectContainerIpInput').val('');
+      
       reloadDataAndRefreshManageModal();
     });
   }
@@ -472,9 +530,30 @@
       showMessage('No selected network', true);
       return;
     }
+
+    // Make request first to get connection info
+    requestData('disconnect', { networkId: currentNetwork.Id, containerId: containerId, getInfo: true }).then(function (data) {
+      // This will fail because we're asking for info on a disconnect, so use the handler below
+      // Actually, we should just proceed with confirmation
+      performDisconnect(containerId, containerName);
+    }).catch(function () {
+      // If getInfo fails, just show basic confirmation
+      performDisconnect(containerId, containerName);
+    });
+  }
+
+  function performDisconnect(containerId, containerName) {
+    var confirmHtml = '<div class="swal-text-block">';
+    confirmHtml += 'Disconnect <strong>' + escapeHtml(containerName) + '</strong>';
+    if (currentNetwork && currentNetwork.Name) {
+      confirmHtml += ' from <strong>' + escapeHtml(currentNetwork.Name) + '</strong>';
+    }
+    confirmHtml += '?';
+    confirmHtml += '</div>';
+
     confirmAction(
       'Disconnect Container',
-      '<div class="swal-text-block">Disconnect <strong>' + escapeHtml(containerName) + '</strong> from this network?</div>',
+      confirmHtml,
       'Disconnect',
       function () {
         apiCall('disconnect', { networkId: currentNetwork.Id, containerId: containerId }, function (data) {
@@ -483,11 +562,26 @@
             return;
           }
 
-          if (data.warning) {
+          // Build disconnect message with additional context
+          var message = 'Container disconnected';
+          if (data.containerName && data.networkName) {
+            message = escapeHtml(data.containerName) + ' disconnected from ' + escapeHtml(data.networkName);
+          }
+          if (data.ip) {
+            message += ' (was ' + escapeHtml(data.ip) + ')';
+          }
+
+          // Show warning if this was the only network
+          if (data.wasOnlyNetwork) {
+            var warning = 'Warning: This was the container\'s only network attachment. It may now be unreachable.';
+            logClient('Container disconnected from only network', { containerName: data.containerName, ip: data.ip }, 'warn', 'network');
+            showMessage(warning, true);
+          } else if (data.warning) {
             showMessage(data.warning, true);
           } else {
-            showMessage('Container disconnected', false);
+            showMessage(message, false);
           }
+          
           reloadDataAndRefreshManageModal();
         });
       }

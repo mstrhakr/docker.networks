@@ -237,6 +237,105 @@ function dockerNetworksInspectNetwork(string $idOrName): ?array
     return $details[0];
 }
 
+/**
+ * Validate IP address format (IPv4 only)
+ */
+function dockerNetworksValidateIpAddress(string $ip): array
+{
+    $ip = trim($ip);
+    if ($ip === '') {
+        return ['valid' => true, 'error' => '']; // empty is OK (auto-assign)
+    }
+
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return ['valid' => false, 'error' => 'Invalid IP address format'];
+    }
+
+    return ['valid' => true, 'error' => ''];
+}
+
+/**
+ * Check if IP is within the network subnet
+ */
+function dockerNetworksIpInSubnet(string $ip, string $subnet): bool
+{
+    $parts = explode('/', $subnet);
+    if (count($parts) !== 2) {
+        return false;
+    }
+
+    $networkAddr = $parts[0];
+    $prefixLen = (int)$parts[1];
+
+    if (!filter_var($networkAddr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || $prefixLen < 0 || $prefixLen > 32) {
+        return false;
+    }
+
+    $ipLong = ip2long($ip);
+    $netLong = ip2long($networkAddr);
+    $maskLong = -1 << (32 - $prefixLen);
+    $maskLong &= 0xffffffff;
+
+    return ($ipLong & $maskLong) === ($netLong & $maskLong);
+}
+
+/**
+ * Check if IP is already in use on the network
+ */
+function dockerNetworksIsIpInUse(string $ip, string $networkId): bool
+{
+    $network = dockerNetworksInspectNetwork($networkId);
+    if (!is_array($network) || !isset($network['Containers']) || !is_array($network['Containers'])) {
+        return false;
+    }
+
+    foreach ($network['Containers'] as $container) {
+        if (is_array($container) && isset($container['IPv4Address'])) {
+            $containerIp = trim((string)$container['IPv4Address']);
+            $containerIpOnly = explode('/', $containerIp)[0]; // remove subnet from address
+            if ($containerIpOnly === $ip) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Get container's IP address on a specific network
+ */
+function dockerNetworksGetContainerNetworkIp(string $containerId, string $networkId): string
+{
+    $network = dockerNetworksInspectNetwork($networkId);
+    if (!is_array($network) || !isset($network['Containers']) || !is_array($network['Containers'])) {
+        return '';
+    }
+
+    foreach ($network['Containers'] as $container) {
+        if (is_array($container) && isset($container['Name']) && ($container['Name'] === $containerId || strpos((string)$container['Name'], $containerId) !== false)) {
+            $ipAddr = isset($container['IPv4Address']) ? trim((string)$container['IPv4Address']) : '';
+            return explode('/', $ipAddr)[0]; // return just the IP without subnet
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Count networks a container is connected to
+ */
+function dockerNetworksGetContainerNetworkCount(string $containerId): int
+{
+    $result = dockerNetworksRun('docker inspect --format={{json .NetworkSettings.Networks}} ' . escapeshellarg($containerId));
+    if ($result['exitCode'] !== 0) {
+        return 0;
+    }
+
+    $networks = json_decode((string)$result['output'], true);
+    return is_array($networks) ? count($networks) : 0;
+}
+
 function dockerNetworksHandleListNetworks(): void
 {
     dockerNetworksLogger('Listing networks', null, 'daemon', 'debug', 'exec');
@@ -397,6 +496,7 @@ function dockerNetworksHandleConnectContainer(array $request): void
 {
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
     $containerId = isset($request['containerId']) ? trim((string) $request['containerId']) : '';
+    $ipAddress = isset($request['ipAddress']) ? trim((string) $request['ipAddress']) : '';
 
     if ($networkId === '' || $containerId === '') {
         dockerNetworksRespond(['success' => false, 'error' => 'Network ID and Container ID are required'], 400);
@@ -415,7 +515,45 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
-    $result = dockerNetworksRun('docker network connect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerId));
+    // Validate IP address if provided
+    if ($ipAddress !== '') {
+        $ipValidation = dockerNetworksValidateIpAddress($ipAddress);
+        if (!$ipValidation['valid']) {
+            dockerNetworksLogger('Connect container failed: invalid IP', ['ip' => $ipAddress, 'error' => $ipValidation['error']], 'user', 'error', 'exec');
+            dockerNetworksRespond(['success' => false, 'error' => 'Invalid IP address: ' . $ipValidation['error']], 400);
+            return;
+        }
+
+        // Check if IP is within subnet
+        $network = dockerNetworksInspectNetwork($networkId);
+        if (is_array($network) && isset($network['IPAM']) && is_array($network['IPAM'])) {
+            $ipam = $network['IPAM'];
+            if (isset($ipam['Config']) && is_array($ipam['Config']) && isset($ipam['Config'][0])) {
+                $subnet = trim((string)$ipam['Config'][0]['Subnet']);
+                if ($subnet !== '' && !dockerNetworksIpInSubnet($ipAddress, $subnet)) {
+                    dockerNetworksLogger('Connect container failed: IP not in subnet', ['ip' => $ipAddress, 'subnet' => $subnet], 'user', 'error', 'exec');
+                    dockerNetworksRespond(['success' => false, 'error' => 'IP address is not within network subnet (' . $subnet . ')'], 400);
+                    return;
+                }
+
+                // Check if IP is already in use
+                if (dockerNetworksIsIpInUse($ipAddress, $networkId)) {
+                    dockerNetworksLogger('Connect container failed: IP already in use', ['ip' => $ipAddress], 'user', 'error', 'exec');
+                    dockerNetworksRespond(['success' => false, 'error' => 'IP address is already in use on this network'], 409);
+                    return;
+                }
+            }
+        }
+    }
+
+    // Build docker network connect command
+    $cmd = 'docker network connect';
+    if ($ipAddress !== '') {
+        $cmd .= ' --ip ' . escapeshellarg($ipAddress);
+    }
+    $cmd .= ' ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerId);
+
+    $result = dockerNetworksRun($cmd);
 
     if ($result['exitCode'] !== 0) {
         dockerNetworksLogger('Connect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'output' => $result['output']], 'user', 'error', 'exec');
@@ -429,15 +567,19 @@ function dockerNetworksHandleConnectContainer(array $request): void
             'persisted' => false,
             'warning' => 'Runtime network change applied. Template XML persistence is disabled in Docker Networks settings.',
         ];
-    dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+    
+    $assignedIp = $ipAddress ?: 'auto-assigned';
+    dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'ipAddress' => $assignedIp, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
 
     dockerNetworksRespond([
         'success' => true,
         'message' => 'Container connected to network',
+        'ipAddress' => $assignedIp,
         'persisted' => $persist['persisted'],
         'warning' => $persist['warning'],
     ]);
 }
+
 
 function dockerNetworksHandleDisconnectContainer(array $request): void
 {
@@ -461,6 +603,11 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
         return;
     }
 
+    // Get current IP and network count before disconnect
+    $currentIp = dockerNetworksGetContainerNetworkIp($containerId, $networkId);
+    $networkCount = dockerNetworksGetContainerNetworkCount($containerId);
+    $isOnlyNetwork = $networkCount <= 1;
+
     $result = dockerNetworksRun('docker network disconnect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerId));
 
     if ($result['exitCode'] !== 0) {
@@ -475,13 +622,23 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
             'persisted' => false,
             'warning' => 'Runtime network change applied. Template XML persistence is disabled in Docker Networks settings.',
         ];
-    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+    
+    $warning = '';
+    if ($isOnlyNetwork) {
+        $warning = 'Warning: This was the container\'s only network attachment. It may now be unreachable.';
+    }
+
+    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerName' => $containerName, 'ip' => $currentIp, 'wasOnlyNetwork' => $isOnlyNetwork, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
 
     dockerNetworksRespond([
         'success' => true,
         'message' => 'Container disconnected from network',
+        'containerName' => $containerName,
+        'networkName' => $networkName,
+        'wasOnlyNetwork' => $isOnlyNetwork,
+        'ip' => $currentIp,
         'persisted' => $persist['persisted'],
-        'warning' => $persist['warning'],
+        'warning' => $persist['warning'] ?: $warning,
     ]);
 }
 

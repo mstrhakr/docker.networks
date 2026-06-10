@@ -167,6 +167,12 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
     <div class="form-group">
       <label for="connectContainerSelect">Attach Container:</label>
       <select id="connectContainerSelect" name="connectContainerSelect"></select>
+    </div>
+
+    <div class="form-group">
+      <label for="connectContainerIpInput">IP Address (Optional):</label>
+      <input type="text" id="connectContainerIpInput" name="connectContainerIpInput" placeholder="Leave blank for auto-assignment" />
+      <small style="display: block; margin-top: 5px; color: #666;">Format: xxx.xxx.xxx.xxx (must be within network subnet)</small>
       <div style="margin-top:10px;">
         <button type="button" class="button orange-button" id="btnConnectContainer">Connect</button>
       </div>
