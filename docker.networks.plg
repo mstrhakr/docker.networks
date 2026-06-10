@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.09.1523">
+<!ENTITY version     "2026.06.10.0820">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "a8d04a149bf968dde5fc9f4254a710ee">
-<!ENTITY pkgBUILD    "1923">
+<!ENTITY packageMD5  "b014d664154c99b5cf0833126a3ad3fa">
+<!ENTITY pkgBUILD    "1220">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,9 +32,16 @@
 >
 
 <CHANGES>
-###2026.06.09.1523
-- Bug Fixes: streamline release body generation for Docker Networks
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.09.1519...v2026.06.09.1523)
+###2026.06.10.0820
+- Features: enhance configuration loading and logging in Docker Networks settings
+- Features: enhance container listing command to include all containers when template persistence is enabled
+- Features: add settings button to Docker Networks UI for easier access to plugin settings
+- Features: implement dismissible banners for user warnings in Docker Networks UI
+- Features: add XML template persistence option and related settings management
+- Features: enhance user networks management with warnings and persistence options
+- Bug Fixes: update Docker settings URL
+- Bug Fixes: update Unraid support forum link for accurate user assistance
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.09.1523...v2026.06.10.0820)
 </CHANGES>
 
 <FILE Run="/bin/bash">
