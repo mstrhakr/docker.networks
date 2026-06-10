@@ -28,9 +28,11 @@ function dockerNetworksSettingsLoadCfg(string $path): array {
     return in_array($value, ['1', 'true', 'yes', 'on', 'preserve', 'enabled'], true);
   }
 
-$cfg = file_exists($cfgPath)
-    ? dockerNetworksSettingsLoadCfg($cfgPath)
-    : (file_exists($defaultCfgPath) ? dockerNetworksSettingsLoadCfg($defaultCfgPath) : []);
+// Merge default.cfg + user cfg — same semantics as parse_plugin_cfg().
+$cfg = file_exists($defaultCfgPath) ? dockerNetworksSettingsLoadCfg($defaultCfgPath) : [];
+if (file_exists($cfgPath)) {
+    $cfg = array_replace($cfg, dockerNetworksSettingsLoadCfg($cfgPath));
+}
 
 $currentLocation = (string)($cfg['MENU_LOCATION'] ?? 'Docker');
 if (!in_array($currentLocation, $validLocations, true)) {
@@ -49,9 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Merge with existing parsed values; write clean key=value only — no comments.
-    $existing = file_exists($cfgPath) ? dockerNetworksSettingsLoadCfg($cfgPath) : [];
-    if (empty($existing) && file_exists($defaultCfgPath)) {
-        $existing = dockerNetworksSettingsLoadCfg($defaultCfgPath);
+    $existing = file_exists($defaultCfgPath) ? dockerNetworksSettingsLoadCfg($defaultCfgPath) : [];
+    if (file_exists($cfgPath)) {
+        $existing = array_replace($existing, dockerNetworksSettingsLoadCfg($cfgPath));
     }
     $existing['MENU_LOCATION'] = $requested;
     $existing['XML_TEMPLATE_PERSIST'] = $requestedXmlTemplatePersist ? '1' : '0';
@@ -61,7 +63,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lines[] = $k . '="' . addcslashes((string)$v, '"\\') . '"';
     }
 
-    if (@file_put_contents($cfgPath, implode("\n", $lines) . "\n") !== false) {
+    $cfgDir = dirname($cfgPath);
+    if (!is_dir($cfgDir)) {
+        @mkdir($cfgDir, 0755, true);
+    }
+    $tmpPath = $cfgPath . '.tmp';
+    $written = @file_put_contents($tmpPath, implode("\n", $lines) . "\n") !== false;
+    if ($written) {
+        $written = @rename($tmpPath, $cfgPath);
+        if (!$written) {
+            @unlink($tmpPath);
+        }
+    }
+    if ($written) {
         $currentLocation = $requested;
       $currentXmlTemplatePersist = $requestedXmlTemplatePersist;
         $statusMsg = 'Settings saved. Refresh the browser to apply the new menu placement.';

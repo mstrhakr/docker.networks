@@ -4,12 +4,7 @@
   function postLog(payload) {
     var endpoint = window.dockerNetworksApiUrl || '/plugins/docker.networks/include/Exec.php';
     try {
-      $.ajax({
-        url: endpoint,
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify(payload)
-      });
+      $.post(endpoint, payload).fail(function () { });
     } catch (e) {
       // Best effort only.
     }

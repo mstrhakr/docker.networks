@@ -3,8 +3,8 @@
 
   var apiBase = window.dockerNetworksApiUrl || '/plugins/docker.networks/include/Exec.php';
   var refreshMs = (window.dockerNetworksRefreshInterval || 30) * 1000;
-  var userNetworksPersist = !!window.dockerNetworksUserNetworksPersist;
-  var xmlTemplatePersist = !!window.dockerNetworksXmlTemplatePersist;
+  var userNetworksPersist = false;
+  var xmlTemplatePersist = false;
   var dockerSettingsUrl = window.dockerNetworksSettingsUrl || '/Settings/DockerSettings';
   var pluginSettingsUrl = window.dockerNetworksPluginSettingsUrl || '/Settings/docker.networks.settings';
   var allContainers = [];
@@ -90,19 +90,23 @@
 
   function updateUserNetworksWarning() {
     if (userNetworksPersist) {
+      logClient('User networks banner hidden', { userNetworksPersist: userNetworksPersist }, 'info', 'settings');
       hideBanner('#dockerUserNetworksWarning');
       return;
     }
 
+    logClient('User networks banner shown', { userNetworksPersist: userNetworksPersist }, 'info', 'settings');
     showBanner('#dockerUserNetworksWarning', 'Docker setting <strong>"Preserve user defined networks"</strong> is currently disabled. Connections may be lost when Docker/server restarts. <a href="' + escapeHtml(dockerSettingsUrl) + '">Open Docker Settings</a> to enable it.');
   }
 
   function updateTemplatePersistenceWarning() {
     if (xmlTemplatePersist) {
+      logClient('Template persistence banner hidden', { xmlTemplatePersist: xmlTemplatePersist }, 'info', 'settings');
       hideBanner('#dockerTemplatePersistenceWarning');
       return;
     }
 
+    logClient('Template persistence banner shown', { xmlTemplatePersist: xmlTemplatePersist }, 'info', 'settings');
     showBanner('#dockerTemplatePersistenceWarning', 'Template XML persistence is <strong>disabled</strong>. Network changes apply at runtime only. Enable it explicitly in <a href="' + escapeHtml(pluginSettingsUrl) + '">Docker Networks Settings</a> if you want template edits for restart persistence.');
   }
 
@@ -110,6 +114,11 @@
     if (typeof window.dockerNetworksLogger === 'function') {
       window.dockerNetworksLogger(msg, data, 'user', level || 'info', category || 'ui');
     }
+  }
+
+  function syncBannerSettings() {
+    userNetworksPersist = !!window.dockerNetworksUserNetworksPersist;
+    xmlTemplatePersist = !!window.dockerNetworksXmlTemplatePersist;
   }
 
   function escapeHtml(text) {
@@ -122,16 +131,9 @@
     var requestBody = payload || {};
     requestBody.action = action;
 
-    $.ajax({
-      url: apiBase,
-      method: 'POST',
-      dataType: 'json',
-      data: requestBody,
-      success: onSuccess,
-      error: function (xhr, status, error) {
-        logClient('API call failed', { action: action, status: status, error: error, response: xhr && xhr.responseText ? xhr.responseText : '' }, 'error', 'api');
-        showMessage('Error: ' + error, true);
-      }
+    $.post(apiBase, requestBody, onSuccess, 'json').fail(function (xhr, status, error) {
+      logClient('API call failed', { action: action, status: status, error: error, response: xhr && xhr.responseText ? xhr.responseText : '' }, 'error', 'api');
+      showMessage('Error: ' + error, true);
     });
   }
 
@@ -311,7 +313,6 @@
       syncNetworksTable(data.networks || []);
       $('#networksTable').show();
       refreshManageModal();
-      logClient('Networks loaded', { count: (data.networks || []).length }, 'debug', 'api');
       return data;
     }).catch(function (err) {
       logClient('Load networks failed', { error: String(err) }, 'error', 'api');
@@ -576,6 +577,13 @@
   }
 
   $(function () {
+    syncBannerSettings();
+    logClient('Banner settings snapshot', {
+      userNetworksPersist: userNetworksPersist,
+      xmlTemplatePersist: xmlTemplatePersist,
+      dockerSettingsUrl: dockerSettingsUrl,
+      pluginSettingsUrl: pluginSettingsUrl
+    }, 'info', 'settings');
     updateUserNetworksWarning();
     updateTemplatePersistenceWarning();
 

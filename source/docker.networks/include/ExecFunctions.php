@@ -45,7 +45,7 @@ function dockerNetworksDispatchAction(array $request): void
 {
     $action = isset($request['action']) ? strtolower(trim((string) $request['action'])) : '';
     if (dockerNetworksShouldLogApiCalls()) {
-        dockerNetworksLogger('API action request', ['action' => $action], 'daemon', 'info', 'api');
+        dockerNetworksLogger('API action request', ['action' => $action], 'daemon', 'debug', 'api');
     }
 
     switch ($action) {

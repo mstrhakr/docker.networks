@@ -1,6 +1,6 @@
 <?php
-$cfgPath = '/boot/config/plugins/docker.networks/docker.networks.cfg';
-$cfg = file_exists($cfgPath) ? (@parse_ini_file($cfgPath, false, INI_SCANNER_RAW) ?: []) : [];
+$docroot = $docroot ?? ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
+require_once __DIR__ . '/Logger.php';
 
 function dockerNetworksNormalizeCfgValue(string $value): string
 {
@@ -17,22 +17,46 @@ function dockerNetworksCfgBool(array $cfg, string $key, bool $default = false): 
   return in_array($value, ['1', 'true', 'yes', 'on', 'preserve', 'enabled'], true);
 }
 
+// Plugin settings: use Unraid-idiomatic parse_plugin_cfg (merges default.cfg + user cfg,
+// strips # comments, same behaviour as the rest of the Unraid framework).
+$cfg = function_exists('parse_plugin_cfg') ? ((array)(parse_plugin_cfg('docker.networks') ?: [])) : [];
+
 $refreshInterval = isset($cfg['REFRESH_INTERVAL']) ? (int)$cfg['REFRESH_INTERVAL'] : 30;
 if ($refreshInterval <= 0) {
     $refreshInterval = 30;
 }
 $xmlTemplatePersist = dockerNetworksCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 
-$dockerCfgPath = '/boot/config/docker.cfg';
-$dockerCfg = file_exists($dockerCfgPath) ? (@parse_ini_file($dockerCfgPath, false, INI_SCANNER_RAW) ?: []) : [];
-$userNetworksMode = isset($dockerCfg['DOCKER_USER_NETWORKS']) ? dockerNetworksNormalizeCfgValue((string)$dockerCfg['DOCKER_USER_NETWORKS']) : 'remove';
-if ($userNetworksMode === 'remove' && file_exists($dockerCfgPath)) {
-  $dockerRaw = @file_get_contents($dockerCfgPath);
-  if (is_string($dockerRaw) && preg_match('/^DOCKER_USER_NETWORKS\s*=\s*"?([^"\r\n]+)"?/mi', $dockerRaw, $match)) {
-    $userNetworksMode = dockerNetworksNormalizeCfgValue((string)$match[1]);
-  }
+// Docker settings: mirror DockerClient.php — merge dynamix.docker.manager defaults with
+// the live docker.cfg so the result is identical to what Unraid itself sees.
+$dockerCfgDefaults = function_exists('my_parse_ini_file')
+    ? ((array)(@my_parse_ini_file("$docroot/plugins/dynamix.docker.manager/default.cfg") ?: []))
+    : [];
+$dockerCfgLive = function_exists('my_parse_ini_file')
+    ? ((array)(@my_parse_ini_file('/boot/config/docker.cfg') ?: []))
+    : [];
+$dockerCfg = array_replace_recursive($dockerCfgDefaults, $dockerCfgLive);
+$userNetworksPersist = (($dockerCfg['DOCKER_USER_NETWORKS'] ?? 'remove') === 'preserve');
+
+if (function_exists('dockerNetworksLogger')) {
+  dockerNetworksLogger('Page settings snapshot', [
+    'pluginCfgPath' => '/boot/config/plugins/docker.networks/docker.networks.cfg',
+    'pluginCfg' => [
+      'REFRESH_INTERVAL' => $cfg['REFRESH_INTERVAL'] ?? null,
+      'XML_TEMPLATE_PERSIST' => $cfg['XML_TEMPLATE_PERSIST'] ?? null,
+    ],
+    'dockerDefaultsPath' => "$docroot/plugins/dynamix.docker.manager/default.cfg",
+    'dockerCfgPath' => '/boot/config/docker.cfg',
+    'dockerCfg' => [
+      'DOCKER_USER_NETWORKS' => $dockerCfg['DOCKER_USER_NETWORKS'] ?? null,
+    ],
+    'derived' => [
+      'refreshInterval' => $refreshInterval,
+      'userNetworksPersist' => $userNetworksPersist,
+      'xmlTemplatePersist' => $xmlTemplatePersist,
+    ],
+  ], 'daemon', 'debug', 'settings');
 }
-$userNetworksPersist = ($userNetworksMode === 'preserve');
 ?>
 <script>
 window.dockerNetworksApiUrl = '/plugins/docker.networks/include/Exec.php';
