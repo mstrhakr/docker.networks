@@ -91,6 +91,7 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
       <th>Driver</th>
       <th>Subnet</th>
       <th>Containers</th>
+      <th>Pending</th>
       <th>Actions</th>
     </tr>
   </thead>

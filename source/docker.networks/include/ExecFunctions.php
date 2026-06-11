@@ -73,7 +73,7 @@ function dockerNetworksDispatchAction(array $request): void
         case 'containers':
             dockerNetworksHandleListContainers();
             return;
-        case 'checkScheduledNetworks':
+        case 'checkschedulednetworks':
             dockerNetworksHandleCheckScheduledNetworks($request);
             return;
         default:
@@ -373,6 +373,59 @@ function dockerNetworksGetContainerNetworkCount(string $containerId): int
     return is_array($networks) ? count($networks) : 0;
 }
 
+/**
+ * Build pending network-attach counts from template PostArgs commands.
+ * Returns map: lowercase network name => unique container count.
+ */
+function dockerNetworksBuildScheduledNetworkCounts(): array
+{
+    $dir = '/boot/config/plugins/dockerMan/templates-user';
+    if (!is_dir($dir)) {
+        return [];
+    }
+
+    $networkToContainers = [];
+    $templates = glob($dir . '/my-*.xml') ?: [];
+    foreach ($templates as $templatePath) {
+        $xml = @simplexml_load_file((string)$templatePath);
+        if ($xml === false) {
+            continue;
+        }
+
+        $postArgs = isset($xml->PostArgs) ? trim((string)$xml->PostArgs) : '';
+        if ($postArgs === '') {
+            continue;
+        }
+
+        // Supports both managed and legacy command forms, with optional --ip and quoted args.
+        $pattern = "/(?:^|&&|\\s)(?:\\/usr\\/bin\\/)?docker\\s+network\\s+connect(?:\\s+--ip\\s+[^\\s]+)?\\s+(?:'|\")?([^\\s'\"&]+)(?:'|\")?\\s+(?:'|\")?([^\\s'\"&]+)(?:'|\")?/i";
+        if (!preg_match_all($pattern, $postArgs, $matches, PREG_SET_ORDER)) {
+            continue;
+        }
+
+        foreach ($matches as $match) {
+            $networkName = isset($match[1]) ? trim((string)$match[1]) : '';
+            $containerName = isset($match[2]) ? trim((string)$match[2]) : '';
+            if ($networkName === '' || $containerName === '') {
+                continue;
+            }
+
+            $networkKey = strtolower($networkName);
+            if (!isset($networkToContainers[$networkKey])) {
+                $networkToContainers[$networkKey] = [];
+            }
+            $networkToContainers[$networkKey][$containerName] = true;
+        }
+    }
+
+    $counts = [];
+    foreach ($networkToContainers as $networkKey => $containerMap) {
+        $counts[$networkKey] = count($containerMap);
+    }
+
+    return $counts;
+}
+
 function dockerNetworksHandleListNetworks(): void
 {
     dockerNetworksLogger('Listing networks', null, 'daemon', 'debug', 'exec');
@@ -385,6 +438,7 @@ function dockerNetworksHandleListNetworks(): void
     }
 
     $networks = [];
+    $scheduledCounts = dockerNetworksBuildScheduledNetworkCounts();
     $meta = dockerNetworksLoadMeta();
     $lines = array_filter(explode("\n", (string) $result['output']));
     foreach ($lines as $line) {
@@ -404,6 +458,7 @@ function dockerNetworksHandleListNetworks(): void
         $entry['IsDefault'] = $protection['isDefault'];
         $entry['IsProtected'] = $protection['isProtected'];
         $entry['ProtectionLabel'] = $protection['label'];
+        $entry['PendingCount'] = (int)($scheduledCounts[strtolower((string)($entry['Name'] ?? ''))] ?? 0);
         $networks[] = $entry;
     }
 

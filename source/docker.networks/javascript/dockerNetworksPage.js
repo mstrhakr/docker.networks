@@ -30,6 +30,15 @@
     return Object.keys((net && net.Containers) || {}).length;
   }
 
+  function networkPendingCount(net) {
+    var value = net && net.PendingCount;
+    if (value == null) {
+      return 0;
+    }
+    var parsed = parseInt(value, 10);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+
   function networkSignature(net) {
     return JSON.stringify({
       name: net && net.Name,
@@ -38,6 +47,7 @@
       subnet: networkSubnet(net),
       description: net && net.Description,
       containerCount: networkContainerCount(net),
+      pendingCount: networkPendingCount(net),
       isDefault: !!(net && net.IsDefault),
       isProtected: !!(net && net.IsProtected),
       protectionLabel: net && net.ProtectionLabel
@@ -189,9 +199,42 @@
     return button;
   }
 
-  function confirmAction(title, messageHtml, confirmText, onConfirm) {
+  function getSwalRuntime() {
+    if (typeof window !== 'undefined' && window.Swal && typeof window.Swal.fire === 'function') {
+      return { version: 2, api: window.Swal };
+    }
+
     if (typeof swal === 'function') {
-      swal({
+      return { version: 1, api: swal };
+    }
+
+    return null;
+  }
+
+  function htmlToText(html) {
+    return $('<div>').html(html || '').text();
+  }
+
+  function confirmAction(title, messageHtml, confirmText, onConfirm) {
+    var runtime = getSwalRuntime();
+    if (runtime && runtime.version === 2) {
+      runtime.api.fire({
+        title: title,
+        html: messageHtml,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: confirmText,
+        cancelButtonText: 'Cancel'
+      }).then(function (result) {
+        if (result && result.isConfirmed) {
+          onConfirm();
+        }
+      });
+      return;
+    }
+
+    if (runtime && runtime.version === 1) {
+      runtime.api({
         title: title,
         text: messageHtml,
         html: true,
@@ -207,14 +250,29 @@
       return;
     }
 
-    if (confirm($('<div>').html(messageHtml).text())) {
+    if (confirm(htmlToText(messageHtml))) {
       onConfirm();
     }
   }
 
   function showActionResult(title, messageHtml, isSuccess, onClose) {
-    if (typeof swal === 'function') {
-      swal({
+    var runtime = getSwalRuntime();
+    if (runtime && runtime.version === 2) {
+      runtime.api.fire({
+        title: title,
+        html: messageHtml,
+        icon: isSuccess ? 'success' : 'error',
+        confirmButtonText: 'OK'
+      }).then(function () {
+        if (onClose) {
+          onClose();
+        }
+      });
+      return;
+    }
+
+    if (runtime && runtime.version === 1) {
+      runtime.api({
         title: title,
         text: messageHtml,
         html: true,
@@ -228,34 +286,50 @@
       return;
     }
 
-    alert($('<div>').html(messageHtml).text());
+    alert(htmlToText(messageHtml));
     if (onClose) {
       onClose();
     }
   }
 
   function showLoadingModal(title, messageHtml) {
-    if (typeof swal === 'function') {
-      swal({
+    var runtime = getSwalRuntime();
+    if (runtime && runtime.version === 2) {
+      runtime.api.fire({
         title: title,
-        text: messageHtml,
-        html: true,
-        type: 'info',
+        html: messageHtml,
+        icon: 'info',
+        showConfirmButton: false,
         allowOutsideClick: false,
         allowEscapeKey: false,
-        didOpen: function (swalInstance) {
-          swalInstance.hideConfirmButton();
-          var loading = document.createElement('div');
-          loading.className = 'docker-networks-spinner';
-          swalInstance.appendChild(loading);
+        didOpen: function () {
+          runtime.api.showLoading();
         }
+      });
+      return;
+    }
+
+    if (runtime && runtime.version === 1) {
+      runtime.api({
+        title: title,
+        text: messageHtml,
+        type: 'info',
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        allowEscapeKey: false
       });
       return;
     }
   }
 
   function closeModal() {
-    if (typeof swal === 'function') {
+    var runtime = getSwalRuntime();
+    if (runtime && runtime.version === 2) {
+      runtime.api.close();
+      return;
+    }
+
+    if (runtime && runtime.version === 1 && typeof swal.close === 'function') {
       swal.close();
     }
   }
@@ -282,6 +356,7 @@
     row.append($('<td></td>').text(net.Driver || ''));
     row.append($('<td></td>').text(networkSubnet(net)));
     row.append($('<td></td>').text(String(networkContainerCount(net))));
+    row.append($('<td></td>').text(String(networkPendingCount(net))));
 
     var actions = $('<td class="network-actions"></td>');
     actions.append(createActionButton('Edit', 'button', function () { openEditModal(net); }));
@@ -297,7 +372,7 @@
 
     if (!networks || networks.length === 0) {
       tbody.empty();
-      tbody.html('<tr><td colspan="5" style="text-align:center;">No networks found</td></tr>');
+      tbody.html('<tr><td colspan="6" style="text-align:center;">No networks found</td></tr>');
       return;
     }
 
