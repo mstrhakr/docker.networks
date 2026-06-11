@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.10.0820">
+<!ENTITY version     "2026.06.11.1417">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "b014d664154c99b5cf0833126a3ad3fa">
-<!ENTITY pkgBUILD    "1220">
+<!ENTITY packageMD5  "87e61b31dc68b1e3d1d352e6bda14e2b">
+<!ENTITY pkgBUILD    "1817">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,16 +32,16 @@
 >
 
 <CHANGES>
-###2026.06.10.0820
-- Features: enhance configuration loading and logging in Docker Networks settings
-- Features: enhance container listing command to include all containers when template persistence is enabled
-- Features: add settings button to Docker Networks UI for easier access to plugin settings
-- Features: implement dismissible banners for user warnings in Docker Networks UI
-- Features: add XML template persistence option and related settings management
-- Features: enhance user networks management with warnings and persistence options
-- Bug Fixes: update Docker settings URL
-- Bug Fixes: update Unraid support forum link for accurate user assistance
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.09.1523...v2026.06.10.0820)
+###2026.06.11.1417
+- Features: add pending network count to network display and update UI accordingly
+- Features: add functionality to check and display scheduled network connections for containers
+- Features: replace showMessage with showActionResult for improved error handling and user feedback
+- Features: enhance container connection handling with additional name hint and improved error messaging
+- Features: enhance container connection handling with state checks
+- Features: update button styles for network actions and refresh functionality
+- Features: add loading and action result modals for container connection and disconnection
+- Features: add IP address validation and optional input for container connection
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.10.0820...v2026.06.11.1417)
 </CHANGES>
 
 <FILE Run="/bin/bash">
