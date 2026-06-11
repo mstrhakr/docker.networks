@@ -10,6 +10,7 @@
   var allContainers = [];
   var currentNetwork = null;
   var networksById = {};
+  var scheduledNetworksForCurrentNetwork = {};
 
   function networkKey(net) {
     if (!net) {
@@ -353,6 +354,23 @@
     });
   }
 
+  function loadScheduledNetworks(networkId) {
+    return requestData('checkScheduledNetworks', { networkId: networkId }).then(function (data) {
+      scheduledNetworksForCurrentNetwork = {};
+      if (data.scheduledContainers && Array.isArray(data.scheduledContainers)) {
+        data.scheduledContainers.forEach(function (container) {
+          scheduledNetworksForCurrentNetwork[container.id] = container;
+          scheduledNetworksForCurrentNetwork[container.name] = container;
+        });
+      }
+      logClient('Scheduled networks loaded', { networkId: networkId, count: data.scheduledContainers ? data.scheduledContainers.length : 0 }, 'debug', 'api');
+    }).catch(function (err) {
+      scheduledNetworksForCurrentNetwork = {};
+      logClient('Load scheduled networks failed', { error: String(err) }, 'debug', 'api');
+      // Don't show error for scheduled networks—it's optional
+    });
+  }
+
   function refreshManageModal() {
     if (!currentNetwork) {
       return;
@@ -428,6 +446,8 @@
     $('#manageModal').show();
 
     loadContainers().then(function () {
+      return loadScheduledNetworks(network.Id);
+    }).then(function () {
       renderConnectedContainers(currentNetwork || network);
       renderConnectSelect(currentNetwork || network);
     }).finally(function () {
@@ -470,11 +490,21 @@
     var tbody = $('#connectedContainersBody');
     tbody.empty();
 
-    if (!rows.length) {
+    var connectedById = {};
+    rows.forEach(function (item) {
+      connectedById[item.id] = true;
+      connectedById[item.name] = true;
+    });
+
+    var hasConnected = rows.length > 0;
+    var hasScheduled = Object.keys(scheduledNetworksForCurrentNetwork).length > 0;
+
+    if (!hasConnected && !hasScheduled) {
       tbody.html('<tr><td colspan="4" style="text-align:center;">No containers attached</td></tr>');
       return;
     }
 
+    // Show currently connected containers
     rows.forEach(function (item) {
       var tr = $('<tr></tr>');
       tr.append('<td>' + escapeHtml(item.name) + '</td>');
@@ -490,6 +520,36 @@
       tr.append(actionTd);
       tbody.append(tr);
     });
+
+    // Show scheduled containers (will connect on startup)
+    if (hasScheduled) {
+      var uniqueScheduled = {};
+      Object.keys(scheduledNetworksForCurrentNetwork).forEach(function (key) {
+        var container = scheduledNetworksForCurrentNetwork[key];
+        uniqueScheduled[container.id] = container;
+      });
+
+      Object.keys(uniqueScheduled).forEach(function (containerId) {
+        var container = uniqueScheduled[containerId];
+        if (connectedById[containerId] || connectedById[container.name]) {
+          return;
+        }
+
+        var tr = $('<tr style="opacity: 0.7; font-style: italic;"></tr>');
+        tr.append('<td>' + escapeHtml(container.name) + '</td>');
+        tr.append('<td>' + escapeHtml(containerId) + '</td>');
+        tr.append('<td><span style="color: #ff9800;">Will connect on startup</span></td>');
+
+        var actionTd = $('<td></td>');
+        var disconnectBtn = $('<button type="button" class="button docker-networks-danger-button">Disconnect</button>');
+        disconnectBtn.on('click', function () {
+          disconnectContainer(containerId, container.name);
+        });
+        actionTd.append(disconnectBtn);
+        tr.append(actionTd);
+        tbody.append(tr);
+      });
+    }
   }
 
   function renderConnectSelect(network) {
@@ -497,6 +557,11 @@
     connectedContainerList(network).forEach(function (item) {
       connected[item.id] = true;
       connected[item.name] = true;
+    });
+
+    // Also filter out scheduled containers
+    Object.keys(scheduledNetworksForCurrentNetwork).forEach(function (key) {
+      connected[key] = true;
     });
 
     var select = $('#connectContainerSelect');

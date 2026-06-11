@@ -73,6 +73,9 @@ function dockerNetworksDispatchAction(array $request): void
         case 'containers':
             dockerNetworksHandleListContainers();
             return;
+        case 'checkScheduledNetworks':
+            dockerNetworksHandleCheckScheduledNetworks($request);
+            return;
         default:
             dockerNetworksRespond(['success' => false, 'error' => 'Invalid action'], 400);
             return;
@@ -323,6 +326,40 @@ function dockerNetworksGetContainerNetworkIp(string $containerId, string $networ
 }
 
 /**
+ * Check whether a container is currently attached to a network at runtime.
+ */
+function dockerNetworksIsContainerConnectedToNetwork(string $containerRef, string $networkId): bool
+{
+    $container = dockerNetworksInspectContainer($containerRef);
+    if (!is_array($container)) {
+        return false;
+    }
+
+    $containerName = isset($container['Name']) ? ltrim((string)$container['Name'], '/') : '';
+    $containerFullId = isset($container['Id']) ? trim((string)$container['Id']) : '';
+
+    $network = dockerNetworksInspectNetwork($networkId);
+    if (!is_array($network) || !isset($network['Containers']) || !is_array($network['Containers'])) {
+        return false;
+    }
+
+    foreach ($network['Containers'] as $attachedId => $attached) {
+        $attachedName = is_array($attached) && isset($attached['Name']) ? trim((string)$attached['Name']) : '';
+        $attachedIdStr = trim((string)$attachedId);
+
+        if ($containerName !== '' && $attachedName === $containerName) {
+            return true;
+        }
+
+        if ($containerFullId !== '' && $attachedIdStr !== '' && strpos($containerFullId, $attachedIdStr) === 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Count networks a container is connected to
  */
 function dockerNetworksGetContainerNetworkCount(string $containerId): int
@@ -492,6 +529,78 @@ function dockerNetworksHandleUpdateNetwork(array $request): void
     dockerNetworksRespond(['success' => true, 'message' => 'Network metadata updated', 'description' => $description]);
 }
 
+function dockerNetworksCheckContainerScheduledNetwork(string $containerName, string $networkName): bool
+{
+    $templatePath = dockerNetworksUserTemplatePath($containerName);
+    if ($templatePath === '') {
+        return false;
+    }
+
+    $xml = @simplexml_load_file($templatePath);
+    if ($xml === false) {
+        return false;
+    }
+
+    $postArgs = isset($xml->PostArgs) ? trim((string) $xml->PostArgs) : '';
+    if ($postArgs === '') {
+        return false;
+    }
+
+    // Check for both managed format (&& docker network connect) and legacy format
+    $managedCmd = dockerNetworksBuildTemplateConnectCmd($networkName, $containerName);
+    $legacyCmd = dockerNetworksBuildLegacyTemplateConnectCmd($networkName, $containerName);
+
+    $normalizedPostArgs = strtolower(preg_replace('/\s+/', ' ', $postArgs) ?: '');
+    $normalizedManaged = strtolower(preg_replace('/\s+/', ' ', $managedCmd) ?: '');
+    $normalizedLegacy = strtolower(preg_replace('/\s+/', ' ', $legacyCmd) ?: '');
+
+    return strpos($normalizedPostArgs, $normalizedManaged) !== false || strpos($normalizedPostArgs, $normalizedLegacy) !== false;
+}
+
+function dockerNetworksHandleCheckScheduledNetworks(array $request): void
+{
+    $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
+
+    if ($networkId === '') {
+        dockerNetworksRespond(['success' => false, 'error' => 'Network ID is required'], 400);
+        return;
+    }
+
+    $networkName = dockerNetworksResolveNetworkName($networkId);
+    if ($networkName === '') {
+        dockerNetworksRespond(['success' => false, 'error' => 'Network not found'], 404);
+        return;
+    }
+
+    $psCommand = "docker ps -a --no-trunc --format='{{json .}}'";
+    $result = dockerNetworksRun($psCommand);
+    if ($result['exitCode'] !== 0) {
+        dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to list containers'], 500);
+        return;
+    }
+
+    $scheduledContainers = [];
+    $lines = array_filter(explode("\n", (string) $result['output']));
+    foreach ($lines as $line) {
+        $row = json_decode($line, true);
+        if (!is_array($row) || !isset($row['Names']) || !isset($row['ID'])) {
+            continue;
+        }
+
+        $containerName = (string) $row['Names'];
+        $containerId = (string) $row['ID'];
+
+        if (dockerNetworksCheckContainerScheduledNetwork($containerName, $networkName)) {
+            $scheduledContainers[] = [
+                'id' => $containerId,
+                'name' => $containerName,
+            ];
+        }
+    }
+
+    dockerNetworksRespond(['success' => true, 'scheduledContainers' => $scheduledContainers]);
+}
+
 function dockerNetworksHandleConnectContainer(array $request): void
 {
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
@@ -654,39 +763,57 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
         return;
     }
 
-    // Get current IP and network count before disconnect
+    // Snapshot runtime connection state before disconnect.
     $currentIp = dockerNetworksGetContainerNetworkIp($containerRef, $networkId);
     $networkCount = dockerNetworksGetContainerNetworkCount($containerRef);
     $isOnlyNetwork = $networkCount <= 1;
+    $isRuntimeConnected = dockerNetworksIsContainerConnectedToNetwork($containerRef, $networkId);
+    $hasScheduledTemplateAttach = dockerNetworksCheckContainerScheduledNetwork($containerName, $networkName);
 
-    $result = dockerNetworksRun('docker network disconnect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerRef));
+    if ($isRuntimeConnected) {
+        $result = dockerNetworksRun('docker network disconnect ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerRef));
 
-    if ($result['exitCode'] !== 0) {
-        dockerNetworksLogger('Disconnect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $result['output']], 'user', 'error', 'exec');
-        dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to disconnect container'], 500);
-        return;
+        if ($result['exitCode'] !== 0) {
+            dockerNetworksLogger('Disconnect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $result['output']], 'user', 'error', 'exec');
+            dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to disconnect container'], 500);
+            return;
+        }
     }
 
-    $persist = dockerNetworksIsTemplatePersistenceEnabled()
-        ? dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, false)
-        : [
-            'persisted' => false,
-            'warning' => 'Runtime network change applied. Template XML persistence is disabled in Docker Networks settings.',
-        ];
+    // Always remove scheduled template attach if it exists. This keeps runtime and template state aligned.
+    $persist = [
+        'persisted' => false,
+        'warning' => '',
+    ];
+    if ($hasScheduledTemplateAttach || dockerNetworksIsTemplatePersistenceEnabled()) {
+        $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, false);
+    }
     
     $warning = '';
     if ($isOnlyNetwork) {
         $warning = 'Warning: This was the container\'s only network attachment. It may now be unreachable.';
     }
 
-    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'ip' => $currentIp, 'wasOnlyNetwork' => $isOnlyNetwork, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+    if (!$isRuntimeConnected && $hasScheduledTemplateAttach) {
+        $warning = $persist['warning'] !== ''
+            ? $persist['warning']
+            : 'Scheduled network connection removed from template. The container will not auto-connect on startup.';
+    }
+
+    if (!$isRuntimeConnected && !$hasScheduledTemplateAttach) {
+        $warning = 'Container was not connected to this network.';
+    }
+
+    dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'ip' => $currentIp, 'wasOnlyNetwork' => $isOnlyNetwork, 'runtimeConnected' => $isRuntimeConnected, 'hadScheduledTemplateAttach' => $hasScheduledTemplateAttach, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
 
     dockerNetworksRespond([
         'success' => true,
-        'message' => 'Container disconnected from network',
+        'message' => $isRuntimeConnected ? 'Container disconnected from network' : 'Scheduled network connection removed',
         'containerName' => $containerName,
         'networkName' => $networkName,
         'wasOnlyNetwork' => $isOnlyNetwork,
+        'runtimeDisconnected' => $isRuntimeConnected,
+        'scheduledRemoved' => $hasScheduledTemplateAttach,
         'ip' => $currentIp,
         'persisted' => $persist['persisted'],
         'warning' => $persist['warning'] ?: $warning,
