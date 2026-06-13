@@ -351,9 +351,20 @@
     }
   }
 
-  function showActionResult(title, messageHtml, isSuccess, onClose) {
+  function showActionResult(title, messageHtml, isSuccess, onClose, options) {
     var runtime = getSwalRuntime();
     var hasAttemptTable = String(messageHtml || '').indexOf('dn-attempt-table') !== -1;
+    var preferredWidth = options && options.preferredWidth ? Number(options.preferredWidth) : 0;
+
+    if (!isFinite(preferredWidth) || preferredWidth <= 0) {
+      preferredWidth = 0;
+    }
+
+    function clampPopupWidth(value) {
+      var minWidth = 520;
+      var maxWidth = 980;
+      return Math.max(minWidth, Math.min(maxWidth, Math.round(value)));
+    }
 
     if (runtime && runtime.version === 2) {
       var swal2Options = {
@@ -364,7 +375,8 @@
       };
 
       if (hasAttemptTable) {
-        swal2Options.width = 'min(96vw, 1100px)';
+        swal2Options.width = preferredWidth > 0 ? (clampPopupWidth(preferredWidth) + 'px') : 'auto';
+        swal2Options.customClass = { popup: 'dn-result-popup' };
       }
 
       runtime.api.fire(swal2Options).then(function () {
@@ -392,9 +404,11 @@
         setTimeout(function () {
           var legacyPopup = $('.sweet-alert:visible');
           if (legacyPopup.length) {
+            var cssWidth = preferredWidth > 0 ? (clampPopupWidth(preferredWidth) + 'px') : 'auto';
+            legacyPopup.addClass('dn-result-popup');
             legacyPopup.css({
-              width: 'min(96vw, 1100px)',
-              'max-width': '1100px'
+              width: cssWidth,
+              'max-width': '96vw'
             });
           }
         }, 0);
@@ -871,6 +885,24 @@
     return baseVerb + ' Complete';
   }
 
+  function estimateBatchPopupWidth(result) {
+    var maxNameLen = 0;
+    var maxDetailLen = 0;
+
+    (result.attempts || []).forEach(function (entry) {
+      var name = entry && entry.item ? (entry.item.name || entry.item.id || '') : '';
+      var detail = entry && entry.message ? String(entry.message) : '';
+      maxNameLen = Math.max(maxNameLen, String(name).length);
+      maxDetailLen = Math.max(maxDetailLen, String(detail).length);
+    });
+
+    var width = 420;
+    width += Math.min(180, maxNameLen * 5);
+    width += Math.min(360, maxDetailLen * 3.5);
+
+    return width;
+  }
+
   function showBatchResult(baseVerb, actionWord, result, onClose) {
     var total = result.attempts.length;
     var successCount = result.successes.length;
@@ -904,7 +936,9 @@
     html += '</div>';
 
     html += '</div>';
-    showActionResult(title, html, failureCount === 0, onClose);
+    showActionResult(title, html, failureCount === 0, onClose, {
+      preferredWidth: estimateBatchPopupWidth(result)
+    });
   }
 
   function connectContainersBatch(items, ipAddress) {

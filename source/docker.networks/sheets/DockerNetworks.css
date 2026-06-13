@@ -417,17 +417,24 @@
 }
 
 .swal-text-block .dn-attempt-table {
-  width: 100%;
-  min-width: 720px;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 8px;
   border-collapse: collapse;
   table-layout: auto;
 }
 
 .swal-text-block .dn-attempt-table-wrap {
-  width: 100%;
+  width: auto;
   max-width: 100%;
+  display: inline-block;
   overflow-x: auto;
+}
+
+.swal2-popup.dn-result-popup,
+.sweet-alert.dn-result-popup {
+  max-width: 96vw !important;
 }
 
 .swal-text-block .dn-attempt-table th,
@@ -451,7 +458,7 @@
 }
 
 .swal-text-block .dn-attempt-table td:nth-child(2) {
-  width: 260px;
+  width: auto;
 }
 
 #docker-networks-page .swal-text-block strong {
