@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.11.1417">
+<!ENTITY version     "2026.06.12.2149">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "87e61b31dc68b1e3d1d352e6bda14e2b">
-<!ENTITY pkgBUILD    "1817">
+<!ENTITY packageMD5  "a432999cb9edb830333ea1553baf6183">
+<!ENTITY pkgBUILD    "0149">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,16 +32,15 @@
 >
 
 <CHANGES>
-###2026.06.11.1417
-- Features: add pending network count to network display and update UI accordingly
-- Features: add functionality to check and display scheduled network connections for containers
-- Features: replace showMessage with showActionResult for improved error handling and user feedback
-- Features: enhance container connection handling with additional name hint and improved error messaging
-- Features: enhance container connection handling with state checks
-- Features: update button styles for network actions and refresh functionality
-- Features: add loading and action result modals for container connection and disconnection
-- Features: add IP address validation and optional input for container connection
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.10.0820...v2026.06.11.1417)
+###2026.06.12.2149
+- Features (logging): add debug mode configuration for enhanced logging
+- Features (delete): add system-style name detection for disabling delete button
+- Bug Fixes (error-handling): improve shutdown error handling for fatal errors
+- Bug Fixes (button): disable delete button if containers exist on network
+- Bug Fixes (delete): improve error handling for network deletion with clearer messages
+- Bug Fixes (delete): enhance delete functionality with edge case coverage. [Bug]: Delete Button Does Nothing When Pressed Fixes #1
+- Chores: update file permissions for test.sh to make it executable
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.11.1417...v2026.06.12.2149)
 </CHANGES>
 
 <FILE Run="/bin/bash">
