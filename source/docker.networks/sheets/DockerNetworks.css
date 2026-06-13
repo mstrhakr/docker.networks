@@ -389,6 +389,71 @@
   color: var(--dn-text-color);
 }
 
+.dn-attempt-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  margin-right: 0;
+  vertical-align: middle;
+}
+
+.dn-attempt-icon-success {
+  color: var(--dn-status-success);
+}
+
+.dn-attempt-icon-failed {
+  color: var(--dn-status-error);
+}
+
+.swal-text-block .dn-failure-summary {
+  color: var(--dn-status-error, #f85149);
+}
+
+.swal-text-block .dn-attempt-table {
+  width: 100%;
+  min-width: 720px;
+  margin-top: 8px;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.swal-text-block .dn-attempt-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.swal-text-block .dn-attempt-table th,
+.swal-text-block .dn-attempt-table td {
+  border-bottom: 1px solid var(--dn-border-color, rgba(255, 255, 255, 0.15));
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.swal-text-block .dn-attempt-table th {
+  font-weight: 700;
+}
+
+.swal-text-block .dn-attempt-table th:first-child,
+.swal-text-block .dn-attempt-table td:first-child {
+  width: 56px;
+  text-align: center;
+}
+
+.swal-text-block .dn-attempt-table td:nth-child(2) {
+  width: 260px;
+}
+
 #docker-networks-page .swal-text-block strong {
   color: var(--dn-text-color);
 }

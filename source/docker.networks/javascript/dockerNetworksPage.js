@@ -353,13 +353,21 @@
 
   function showActionResult(title, messageHtml, isSuccess, onClose) {
     var runtime = getSwalRuntime();
+    var hasAttemptTable = String(messageHtml || '').indexOf('dn-attempt-table') !== -1;
+
     if (runtime && runtime.version === 2) {
-      runtime.api.fire({
+      var swal2Options = {
         title: title,
         html: messageHtml,
         icon: isSuccess ? 'success' : 'error',
         confirmButtonText: 'OK'
-      }).then(function () {
+      };
+
+      if (hasAttemptTable) {
+        swal2Options.width = 'min(96vw, 1100px)';
+      }
+
+      runtime.api.fire(swal2Options).then(function () {
         if (onClose) {
           onClose();
         }
@@ -379,6 +387,19 @@
           onClose();
         }
       });
+
+      if (hasAttemptTable) {
+        setTimeout(function () {
+          var legacyPopup = $('.sweet-alert:visible');
+          if (legacyPopup.length) {
+            legacyPopup.css({
+              width: 'min(96vw, 1100px)',
+              'max-width': '1100px'
+            });
+          }
+        }, 0);
+      }
+
       return;
     }
 
@@ -857,18 +878,30 @@
     var title = resolveBatchTitle(baseVerb, result);
     var html = '<div class="swal-text-block">';
     html += '<strong>' + successCount + ' of ' + total + '</strong> container(s) ' + escapeHtml(actionWord) + '.';
-    html += '<br><strong>' + failureCount + '</strong> failed.';
+    if (failureCount > 0) {
+      html += '<br><strong class="dn-failure-summary">' + failureCount + ' of ' + total + ' failed.</strong>';
+    }
 
     html += '<br><br><strong>Attempt report:</strong>';
+    html += '<div class="dn-attempt-table-wrap">';
+    html += '<table class="dn-attempt-table">';
+    html += '<thead><tr><th>Status</th><th>Container</th><th>Details</th></tr></thead>';
+    html += '<tbody>';
     result.attempts.forEach(function (entry) {
       var name = entry.item && (entry.item.name || entry.item.id) ? (entry.item.name || entry.item.id) : 'Unknown';
-      var status = entry.status === 'success' ? 'OK' : 'FAILED';
-      var detail = entry.message ? String(entry.message) : '';
-      html += '<br>- [' + status + '] ' + escapeHtml(name);
-      if (detail) {
-        html += ': ' + escapeHtml(detail);
-      }
+      var isSuccess = entry.status === 'success';
+      var iconClass = isSuccess ? 'dn-attempt-icon dn-attempt-icon-success' : 'dn-attempt-icon dn-attempt-icon-failed';
+      var symbol = isSuccess ? '&#10003;' : '&#10005;';
+      var statusLabel = isSuccess ? 'Success' : 'Failed';
+      var detail = entry.message ? String(entry.message) : 'No details';
+      html += '<tr>';
+      html += '<td><span class="' + iconClass + '" title="' + statusLabel + '">' + symbol + '</span></td>';
+      html += '<td>' + escapeHtml(name) + '</td>';
+      html += '<td>' + escapeHtml(detail) + '</td>';
+      html += '</tr>';
     });
+    html += '</tbody></table>';
+    html += '</div>';
 
     html += '</div>';
     showActionResult(title, html, failureCount === 0, onClose);
