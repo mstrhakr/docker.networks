@@ -165,37 +165,93 @@
   }
 
 
-  function apiCall(action, payload, onSuccess) {
+  function extractApiErrorMessage(xhr, status, error) {
+    if (xhr && xhr.responseJSON && typeof xhr.responseJSON === 'object') {
+      if (xhr.responseJSON.error) {
+        return String(xhr.responseJSON.error);
+      }
+    }
+
+    if (xhr && xhr.responseText) {
+      try {
+        var parsed = JSON.parse(xhr.responseText);
+        if (parsed && typeof parsed === 'object' && parsed.error) {
+          return String(parsed.error);
+        }
+      } catch (parseErr) {
+        // Ignore parse failure and keep fallback handling.
+      }
+    }
+
+    if (error) {
+      return String(error);
+    }
+
+    if (status) {
+      return String(status);
+    }
+
+    return 'Unknown API error';
+  }
+
+  function apiCall(action, payload, onSuccess, onError) {
     var requestBody = payload || {};
     requestBody.action = action;
 
     $.post(apiBase, requestBody, onSuccess, 'json').fail(function (xhr, status, error) {
-      logClient('API call failed', { action: action, status: status, error: error, response: xhr && xhr.responseText ? xhr.responseText : '' }, 'error', 'api');
-      showActionResult('API Error', '<div class="swal-text-block">Error: ' + escapeHtml(error) + '</div>', false);
+      var message = extractApiErrorMessage(xhr, status, error);
+      logClient('API call failed', {
+        action: action,
+        status: status,
+        error: error,
+        parsedError: message,
+        response: xhr && xhr.responseText ? xhr.responseText : ''
+      }, 'error', 'api');
+
+      if (typeof onError === 'function') {
+        onError(message, xhr, status, error);
+        return;
+      }
+
+      showActionResult('API Error', '<div class="swal-text-block">Error: ' + escapeHtml(message) + '</div>', false);
     });
   }
 
   function requestData(action, payload) {
     return new Promise(function (resolve, reject) {
-      apiCall(action, payload, function (data) {
-        if (data && data.success) {
-          resolve(data);
-          return;
+      apiCall(
+        action,
+        payload,
+        function (data) {
+          if (data && data.success) {
+            resolve(data);
+            return;
+          }
+          reject((data && data.error) || 'Unknown error');
+        },
+        function (message) {
+          reject(message || 'Unknown error');
         }
-        reject((data && data.error) || 'Unknown error');
-      });
+      );
     });
   }
 
   function requestAction(action, payload) {
     return new Promise(function (resolve, reject) {
-      apiCall(action, payload, function (data) {
-        if (data && data.success) {
-          resolve(data || {});
-          return;
+      apiCall(
+        action,
+        payload,
+        function (data) {
+          if (data && data.success) {
+            resolve(data || {});
+            return;
+          }
+          reject((data && data.error) || 'Unknown error');
+        },
+        function (message) {
+          reject(message || 'Unknown error');
         }
-        reject((data && data.error) || 'Unknown error');
-      });
+      );
     });
   }
 

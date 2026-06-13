@@ -830,8 +830,17 @@ function dockerNetworksHandleConnectContainer(array $request): void
     $result = dockerNetworksRun($cmd);
 
     if ($result['exitCode'] !== 0) {
-        dockerNetworksLogger('Connect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $result['output']], 'user', 'error', 'exec');
-        dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to connect container'], 500);
+        $daemonError = trim((string)($result['output'] ?? ''));
+        $friendlyError = $daemonError !== '' ? $daemonError : 'Failed to connect container';
+        $statusCode = 500;
+
+        if (stripos($daemonError, 'sharing network namespace with another container or host') !== false) {
+            $friendlyError = 'This container uses host/container network namespace mode, so Docker cannot attach additional networks. Change the container network mode to bridge/custom in the container template, then retry.';
+            $statusCode = 409;
+        }
+
+        dockerNetworksLogger('Connect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $daemonError, 'friendlyError' => $friendlyError, 'statusCode' => $statusCode], 'user', 'error', 'exec');
+        dockerNetworksRespond(['success' => false, 'error' => $friendlyError], $statusCode);
         return;
     }
 
