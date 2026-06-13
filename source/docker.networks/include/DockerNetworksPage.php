@@ -2,18 +2,18 @@
 $docroot = $docroot ?? ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
 require_once __DIR__ . '/Logger.php';
 
-function dockerNetworksNormalizeCfgValue(string $value): string
+function dockerNetworksPageNormalizeCfgValue(string $value): string
 {
   return strtolower(trim($value, " \t\n\r\0\x0B\"'"));
 }
 
-function dockerNetworksCfgBool(array $cfg, string $key, bool $default = false): bool
+function dockerNetworksPageCfgBool(array $cfg, string $key, bool $default = false): bool
 {
   if (!isset($cfg[$key])) {
     return $default;
   }
 
-  $value = dockerNetworksNormalizeCfgValue((string)$cfg[$key]);
+  $value = dockerNetworksPageNormalizeCfgValue((string)$cfg[$key]);
   return in_array($value, ['1', 'true', 'yes', 'on', 'preserve', 'enabled'], true);
 }
 
@@ -25,7 +25,7 @@ $refreshInterval = isset($cfg['REFRESH_INTERVAL']) ? (int)$cfg['REFRESH_INTERVAL
 if ($refreshInterval <= 0) {
     $refreshInterval = 30;
 }
-$xmlTemplatePersist = dockerNetworksCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
+$xmlTemplatePersist = dockerNetworksPageCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 
 // Docker settings: mirror DockerClient.php — merge dynamix.docker.manager defaults with
 // the live docker.cfg so the result is identical to what Unraid itself sees.

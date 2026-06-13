@@ -128,7 +128,7 @@ function dockerNetworksLoadPluginCfg(): array
     return is_array($cfg) ? $cfg : [];
 }
 
-function dockerNetworksCfgBool(array $cfg, string $key, bool $default = false): bool
+function dockerNetworksExecCfgBool(array $cfg, string $key, bool $default = false): bool
 {
     if (!isset($cfg[$key])) {
         return $default;
@@ -141,7 +141,7 @@ function dockerNetworksCfgBool(array $cfg, string $key, bool $default = false): 
 function dockerNetworksIsTemplatePersistenceEnabled(): bool
 {
     $cfg = dockerNetworksLoadPluginCfg();
-    return dockerNetworksCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
+    return dockerNetworksExecCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 }
 
 function dockerNetworksMetaPath(): string
