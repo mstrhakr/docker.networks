@@ -231,6 +231,15 @@ function dockerNetworksProtectionInfo(array $network): array
         ];
     }
 
+    // Interface-style names (e.g. wg0, br0) are typically system-managed.
+    if (dockerNetworksIsSystemStyleName($name)) {
+        return [
+            'isDefault' => false,
+            'isProtected' => true,
+            'label' => 'System',
+        ];
+    }
+
     $labels = isset($network['Labels']) && is_array($network['Labels']) ? $network['Labels'] : [];
     if (($labels['com.docker.network.bridge.default_bridge'] ?? '') === 'true') {
         return [
@@ -256,6 +265,21 @@ function dockerNetworksProtectionInfo(array $network): array
         'isProtected' => false,
         'label' => '',
     ];
+}
+
+function dockerNetworksIsSystemStyleName(string $name): bool
+{
+    $name = strtolower(trim($name));
+    if ($name === '') {
+        return false;
+    }
+
+    // Keep heuristic conservative: only compact interface-style names, no separators.
+    if (preg_match('/[^a-z0-9]/', $name)) {
+        return false;
+    }
+
+    return (bool) preg_match('/^(?:wg|br|bond|vlan|virbr|docker|podman|tun|tap|zt|tailscale)\d+$/', $name);
 }
 
 function dockerNetworksInspectNetwork(string $idOrName): ?array
