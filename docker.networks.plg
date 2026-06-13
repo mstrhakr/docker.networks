@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.12.2149">
+<!ENTITY version     "2026.06.12.2152">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "a432999cb9edb830333ea1553baf6183">
-<!ENTITY pkgBUILD    "0149">
+<!ENTITY packageMD5  "2e2493f1549a36c1d7f14d55308c784b">
+<!ENTITY pkgBUILD    "0152">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,15 +32,9 @@
 >
 
 <CHANGES>
-###2026.06.12.2149
-- Features (logging): add debug mode configuration for enhanced logging
-- Features (delete): add system-style name detection for disabling delete button
-- Bug Fixes (error-handling): improve shutdown error handling for fatal errors
-- Bug Fixes (button): disable delete button if containers exist on network
-- Bug Fixes (delete): improve error handling for network deletion with clearer messages
-- Bug Fixes (delete): enhance delete functionality with edge case coverage. [Bug]: Delete Button Does Nothing When Pressed Fixes #1
-- Chores: update file permissions for test.sh to make it executable
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.11.1417...v2026.06.12.2149)
+###2026.06.12.2152
+- Bug Fixes: rename configuration functions to avoid collision
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.12.2149...v2026.06.12.2152)
 </CHANGES>
 
 <FILE Run="/bin/bash">
