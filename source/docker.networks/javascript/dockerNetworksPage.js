@@ -806,35 +806,69 @@
   function runSequential(items, executor) {
     var successes = [];
     var failures = [];
+    var attempts = [];
 
     return items.reduce(function (chain, item) {
       return chain.then(function () {
         return executor(item).then(function (data) {
-          successes.push({ item: item, data: data || {} });
+          var payload = data || {};
+          var successEntry = { item: item, data: payload };
+          successes.push(successEntry);
+          attempts.push({
+            item: item,
+            status: 'success',
+            data: payload,
+            message: payload.message || ''
+          });
         }).catch(function (error) {
-          failures.push({ item: item, error: String(error) });
+          var errorText = String(error || 'Unknown error');
+          var failureEntry = { item: item, error: errorText };
+          failures.push(failureEntry);
+          attempts.push({
+            item: item,
+            status: 'failed',
+            error: errorText,
+            message: errorText
+          });
         });
       });
     }, Promise.resolve()).then(function () {
-      return { successes: successes, failures: failures };
+      return { successes: successes, failures: failures, attempts: attempts };
     });
   }
 
-  function showBatchResult(title, actionWord, result, onClose) {
+  function resolveBatchTitle(baseVerb, result) {
+    var total = result.attempts.length;
+    var successCount = result.successes.length;
+
+    if (successCount === 0 && total > 0) {
+      return baseVerb + ' Failed';
+    }
+    if (successCount < total) {
+      return baseVerb + ' Incomplete';
+    }
+    return baseVerb + ' Complete';
+  }
+
+  function showBatchResult(baseVerb, actionWord, result, onClose) {
+    var total = result.attempts.length;
     var successCount = result.successes.length;
     var failureCount = result.failures.length;
+    var title = resolveBatchTitle(baseVerb, result);
     var html = '<div class="swal-text-block">';
-    html += '<strong>' + successCount + '</strong> container(s) ' + escapeHtml(actionWord) + '.';
+    html += '<strong>' + successCount + ' of ' + total + '</strong> container(s) ' + escapeHtml(actionWord) + '.';
+    html += '<br><strong>' + failureCount + '</strong> failed.';
 
-    if (failureCount > 0) {
-      html += '<br><br><strong>' + failureCount + '</strong> failed:';
-      result.failures.slice(0, 5).forEach(function (entry) {
-        html += '<br>- ' + escapeHtml(entry.item.name || entry.item.id || 'Unknown') + ': ' + escapeHtml(entry.error);
-      });
-      if (failureCount > 5) {
-        html += '<br>- ...';
+    html += '<br><br><strong>Attempt report:</strong>';
+    result.attempts.forEach(function (entry) {
+      var name = entry.item && (entry.item.name || entry.item.id) ? (entry.item.name || entry.item.id) : 'Unknown';
+      var status = entry.status === 'success' ? 'OK' : 'FAILED';
+      var detail = entry.message ? String(entry.message) : '';
+      html += '<br>- [' + status + '] ' + escapeHtml(name);
+      if (detail) {
+        html += ': ' + escapeHtml(detail);
       }
-    }
+    });
 
     html += '</div>';
     showActionResult(title, html, failureCount === 0, onClose);
@@ -875,7 +909,7 @@
         $('#connectContainerIpInput').val('');
       }
 
-      showBatchResult('Attach Complete', 'attached', result, function () {
+      showBatchResult('Attach', 'attached', result, function () {
         if (result.successes.length > 0) {
           reloadDataAndRefreshManageModal();
         }
@@ -909,7 +943,7 @@
         }
         return requestAction('disconnect', payload);
       }).then(function (result) {
-        showBatchResult('Detach Complete', 'detached', result, function () {
+        showBatchResult('Detach', 'detached', result, function () {
           if (result.successes.length > 0) {
             reloadDataAndRefreshManageModal();
           }
