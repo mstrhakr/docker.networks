@@ -187,12 +187,15 @@
     });
   }
 
-  function createActionButton(label, classes, handler, disabled) {
+  function createActionButton(label, classes, handler, disabled, disabledReason) {
     var button = $('<button type="button"></button>');
     button.addClass(classes);
     button.text(label);
     if (disabled) {
-      button.prop('disabled', true).attr('title', 'Protected Docker networks cannot be deleted');
+      button.prop('disabled', true);
+      if (disabledReason) {
+        button.attr('title', disabledReason);
+      }
       return button;
     }
     button.on('click', handler);
@@ -361,7 +364,17 @@
     var actions = $('<td class="network-actions"></td>');
     actions.append(createActionButton('Edit', 'button', function () { openEditModal(net); }));
     actions.append(createActionButton('Manage', 'button', function () { openManageModal(net); }));
-    actions.append(createActionButton('Delete', 'button orange-button', function () { deleteNetwork(net.Id, net.Name, !!net.IsProtected, net.ProtectionLabel); }, !!net.IsProtected));
+    
+    // Determine if delete button should be disabled and why
+    var canDelete = !net.IsProtected && networkContainerCount(net) === 0 && networkPendingCount(net) === 0;
+    var deleteDisabledReason = '';
+    if (net.IsProtected) {
+      deleteDisabledReason = 'Protected Docker networks cannot be deleted';
+    } else if (networkContainerCount(net) > 0 || networkPendingCount(net) > 0) {
+      deleteDisabledReason = 'Disconnect all containers from this network before deleting. Use the Manage tab.';
+    }
+    
+    actions.append(createActionButton('Delete', 'button orange-button', function () { deleteNetwork(net.Id, net.Name, !!net.IsProtected, net.ProtectionLabel); }, !canDelete, deleteDisabledReason));
 
     row.append(actions);
   }
