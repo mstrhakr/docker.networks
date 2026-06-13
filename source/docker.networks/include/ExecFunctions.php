@@ -564,8 +564,17 @@ function dockerNetworksHandleDeleteNetwork(array $request): void
 
     $result = dockerNetworksRun('docker network rm ' . escapeshellarg($id));
     if ($result['exitCode'] !== 0) {
+        $output = $result['output'] ?: '';
+        
+        // Better error message for connected containers
+        if (stripos($output, 'active endpoints') !== false || stripos($output, 'busy') !== false) {
+            $error = 'Network has connected containers. Disconnect all containers first using the Manage button.';
+        } else {
+            $error = $output ?: 'Failed to delete network';
+        }
+        
         dockerNetworksLogger('Delete network failed', ['id' => $id, 'output' => $result['output']], 'user', 'error', 'exec');
-        dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to delete network'], 500);
+        dockerNetworksRespond(['success' => false, 'error' => $error], 500);
         return;
     }
 
