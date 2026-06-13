@@ -35,11 +35,23 @@ if (!function_exists('dockerNetworksShouldLogApiCalls')) {
     }
 }
 
+if (!function_exists('dockerNetworksCfgBool')) {
+    function dockerNetworksCfgBool(array $cfg, string $key, bool $default = false): bool
+    {
+        if (!isset($cfg[$key])) {
+            return $default;
+        }
+
+        $value = strtolower(trim((string)$cfg[$key], " \t\n\r\0\x0B\"'"));
+        return in_array($value, ['1', 'true', 'yes', 'on', 'enabled'], true);
+    }
+}
+
 if (!function_exists('dockerNetworksLogger')) {
     function dockerNetworksLogger(string $message, $data = null, string $type = 'user', string $level = 'info', string $category = ''): void
     {
         $cfg = dockerNetworksLoadCfg();
-        $debugMode = (($cfg['DEBUG_TO_LOG'] ?? 'false') === 'true');
+        $debugMode = dockerNetworksCfgBool($cfg, 'DEBUG_TO_LOG', false);
 
         if (!$debugMode && $level === 'debug') {
             return;

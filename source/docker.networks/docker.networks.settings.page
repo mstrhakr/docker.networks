@@ -39,6 +39,7 @@ if (!in_array($currentLocation, $validLocations, true)) {
     $currentLocation = 'Docker';
 }
 $currentXmlTemplatePersist = dockerNetworksSettingsCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
+$currentDebugToLog = dockerNetworksSettingsCfgBool($cfg, 'DEBUG_TO_LOG', false);
 
 $statusMsg  = '';
 $statusType = 'success'; // 'success' | 'error'
@@ -46,6 +47,7 @@ $statusType = 'success'; // 'success' | 'error'
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $requested = isset($_POST['MENU_LOCATION']) ? trim((string)$_POST['MENU_LOCATION']) : 'Docker';
   $requestedXmlTemplatePersist = isset($_POST['XML_TEMPLATE_PERSIST']) && (string)$_POST['XML_TEMPLATE_PERSIST'] === '1';
+  $requestedDebugToLog = isset($_POST['DEBUG_TO_LOG']) && (string)$_POST['DEBUG_TO_LOG'] === '1';
     if (!in_array($requested, $validLocations, true)) {
         $requested = 'Docker';
     }
@@ -57,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $existing['MENU_LOCATION'] = $requested;
     $existing['XML_TEMPLATE_PERSIST'] = $requestedXmlTemplatePersist ? '1' : '0';
+    $existing['DEBUG_TO_LOG'] = $requestedDebugToLog ? 'true' : 'false';
 
     $lines = [];
     foreach ($existing as $k => $v) {
@@ -78,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($written) {
         $currentLocation = $requested;
       $currentXmlTemplatePersist = $requestedXmlTemplatePersist;
+      $currentDebugToLog = $requestedDebugToLog;
         $statusMsg = 'Settings saved. Refresh the browser to apply the new menu placement.';
     } else {
         $statusType = 'error';
@@ -120,6 +124,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <blockquote class="inline_help">
         Disabled by default for safety. When enabled, network connect/disconnect actions can update
         <code>/boot/config/plugins/dockerMan/templates-user/my-*.xml</code> so additional network attachments persist after Docker/server restart.
+      </blockquote>
+    </dd>
+  </dl>
+
+  <dl>
+    <dt>_(Debug Mode)_:</dt>
+    <dd>
+      <label>
+        <input type="checkbox" name="DEBUG_TO_LOG" value="1" <?= $currentDebugToLog ? 'checked' : '' ?>>
+        _(Enable debug-level syslog entries for Docker Networks)_
+      </label>
+      <blockquote class="inline_help">
+        Disabled by default. When enabled, additional debug logs are written via syslog
+        with the <code>docker.networks</code> tag to help diagnose behavior.
       </blockquote>
     </dd>
   </dl>
