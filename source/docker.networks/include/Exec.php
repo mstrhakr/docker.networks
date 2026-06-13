@@ -13,6 +13,12 @@ register_shutdown_function(static function (): void {
         return;
     }
 
+    $type = (int) ($lastError['type'] ?? 0);
+    $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR];
+    if (!in_array($type, $fatalTypes, true)) {
+        return;
+    }
+
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: application/json');
