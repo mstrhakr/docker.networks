@@ -166,29 +166,53 @@
 
 
   function extractApiErrorMessage(xhr, status, error) {
-    if (xhr && xhr.responseJSON && typeof xhr.responseJSON === 'object') {
-      if (xhr.responseJSON.error) {
-        return String(xhr.responseJSON.error);
+    function decodeEscapedJsonString(value) {
+      try {
+        return JSON.parse('"' + String(value).replace(/"/g, '\\"') + '"');
+      } catch (e) {
+        return String(value);
       }
     }
 
-    if (xhr && xhr.responseText) {
+    if (xhr && xhr.responseJSON && typeof xhr.responseJSON === 'object') {
+      if (xhr.responseJSON.error) {
+        return String(xhr.responseJSON.error).trim();
+      }
+    }
+
+    var responseText = xhr && xhr.responseText ? String(xhr.responseText) : '';
+    if (responseText) {
       try {
-        var parsed = JSON.parse(xhr.responseText);
+        var parsed = JSON.parse(responseText);
         if (parsed && typeof parsed === 'object' && parsed.error) {
-          return String(parsed.error);
+          return String(parsed.error).trim();
         }
       } catch (parseErr) {
-        // Ignore parse failure and keep fallback handling.
+        var errorMatch = responseText.match(/"error"\s*:\s*"((?:\\.|[^"\\])*)"/i);
+        if (errorMatch && errorMatch[1]) {
+          var extracted = decodeEscapedJsonString(errorMatch[1]).trim();
+          if (extracted) {
+            return extracted;
+          }
+        }
       }
     }
 
     if (error) {
-      return String(error);
+      return String(error).trim();
+    }
+
+    var statusText = xhr && xhr.statusText ? String(xhr.statusText).trim() : '';
+    if (statusText) {
+      return statusText;
     }
 
     if (status) {
-      return String(status);
+      return String(status).trim();
+    }
+
+    if (responseText) {
+      return responseText.slice(0, 240).trim();
     }
 
     return 'Unknown API error';
@@ -213,7 +237,8 @@
         return;
       }
 
-      showActionResult('API Error', '<div class="swal-text-block">Error: ' + escapeHtml(message) + '</div>', false);
+      var displayMessage = (message && String(message).trim()) ? String(message).trim() : 'Unknown API error';
+      showActionResult('API Error', '<div class="swal-text-block">Error: ' + escapeHtml(displayMessage) + '</div>', false);
     });
   }
 
