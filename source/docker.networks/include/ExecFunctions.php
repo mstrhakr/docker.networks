@@ -156,7 +156,23 @@ function dockerNetworksLoadMeta(): array
         return [];
     }
 
-    $decoded = json_decode((string) file_get_contents($path), true);
+    $fp = @fopen($path, 'r');
+    if ($fp === false) {
+        return [];
+    }
+
+    $locked = flock($fp, LOCK_SH);
+    $content = $locked ? file_get_contents($path) : '';
+    if ($locked) {
+        flock($fp, LOCK_UN);
+    }
+    fclose($fp);
+
+    if ($content === '' || $content === false) {
+        return [];
+    }
+
+    $decoded = json_decode($content, true);
     return is_array($decoded) ? $decoded : [];
 }
 
@@ -168,7 +184,24 @@ function dockerNetworksSaveMeta(array $meta): bool
         return false;
     }
 
-    return file_put_contents($path, json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) !== false;
+    $json = json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return false;
+    }
+
+    $fp = @fopen($path, 'w');
+    if ($fp === false) {
+        return false;
+    }
+
+    $locked = flock($fp, LOCK_EX);
+    $written = $locked ? fwrite($fp, $json) !== false : false;
+    if ($locked) {
+        flock($fp, LOCK_UN);
+    }
+    fclose($fp);
+
+    return $written;
 }
 
 function dockerNetworksMetaEntry(array $meta, array $network): array

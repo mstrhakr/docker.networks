@@ -802,8 +802,39 @@
     performDisconnect(containerId, containerName);
   }
 
+  var deleteInProgress = false;
+
+  function deleteNetwork(id, name, isProtected, protectionLabel) {
+    // Prevent double-delete race condition
+    if (deleteInProgress) {
+      return;
+    }
+
+    if (isProtected) {
+      showActionResult('Cannot Delete', '<div class="swal-text-block">This network is protected and cannot be deleted.</div>', false);
+      return;
+    }
+
+    var confirmHtml = '<div class="swal-text-block">';
+    confirmHtml += 'Are you sure you want to delete <strong>' + escapeHtml(name) + '</strong>?';
+    confirmHtml += '<br><br><span style="color: #ff9800;">This action cannot be undone.</span>';
+    confirmHtml += '</div>';
+
+    confirmAction(
+      'Delete Network',
+      confirmHtml,
+      'Delete',
+      function () {
+        deleteInProgress = true;
+        showLoadingModal('Deleting Network', 'Removing network...');
+        performDeleteNetwork(id, name);
+      }
+    );
+  }
+
   function performDeleteNetwork(id, name) {
     apiCall('delete', { id: id }, function (data) {
+      deleteInProgress = false;
       if (data.success) {
         logClient('Network deleted', { id: id, name: name }, 'info', 'network');
         showActionResult('Deleted', '<div class="swal-text-block">Network deleted successfully</div>', true, function () {
