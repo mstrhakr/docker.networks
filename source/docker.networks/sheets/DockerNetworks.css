@@ -304,10 +304,72 @@
   overflow: auto;
   border: 1px solid var(--dn-border-color);
   border-radius: 6px;
+  padding: 12px;
 }
 
 #docker-networks-page #connectedContainersTable {
   min-width: 760px;
+}
+
+#docker-networks-page .dn-transfer-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+#docker-networks-page .dn-transfer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#docker-networks-page .dn-transfer-col label {
+  font-weight: 600;
+}
+
+#docker-networks-page .dn-transfer-col select[multiple] {
+  min-height: 320px;
+  width: 100%;
+  border: 1px solid var(--dn-border-color);
+  border-radius: 4px;
+  background-color: var(--dn-background-color);
+  color: var(--dn-text-color);
+}
+
+#docker-networks-page .dn-transfer-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+#docker-networks-page .dn-transfer-actions .button {
+  min-width: 56px;
+}
+
+#docker-networks-page .dn-transfer-item-name {
+  font-weight: 600;
+}
+
+#docker-networks-page .dn-transfer-item-meta {
+  opacity: 0.7;
+}
+
+#docker-networks-page .dn-transfer-item-tag {
+  opacity: 0.75;
+}
+
+@media (max-width: 900px) {
+  #docker-networks-page .dn-transfer-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  #docker-networks-page .dn-transfer-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 #docker-networks-page .small-table th,

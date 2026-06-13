@@ -187,6 +187,18 @@
     });
   }
 
+  function requestAction(action, payload) {
+    return new Promise(function (resolve, reject) {
+      apiCall(action, payload, function (data) {
+        if (data && data.success) {
+          resolve(data || {});
+          return;
+        }
+        reject((data && data.error) || 'Unknown error');
+      });
+    });
+  }
+
   function createActionButton(label, classes, handler, disabled, disabledReason) {
     var button = $('<button type="button"></button>');
     button.addClass(classes);
@@ -472,8 +484,7 @@
 
     currentNetwork = refreshedNetwork;
     $('#manageNetworkName').text((refreshedNetwork.Name || '') + ' (' + (refreshedNetwork.Id || '').substring(0, 12) + ')');
-    renderConnectedContainers(refreshedNetwork);
-    renderConnectSelect(refreshedNetwork);
+    renderManageTransferLists(refreshedNetwork);
   }
 
   function loadNetworks(options) {
@@ -536,8 +547,7 @@
     loadContainers().then(function () {
       return loadScheduledNetworks(network.Id);
     }).then(function () {
-      renderConnectedContainers(currentNetwork || network);
-      renderConnectSelect(currentNetwork || network);
+      renderManageTransferLists(currentNetwork || network);
     }).finally(function () {
       setManageLoading(false);
     });
@@ -553,9 +563,18 @@
     var loading = !!isLoading;
     $('#manageLoading').toggle(loading);
     $('#manageTableWrap').toggle(!loading);
-    $('#btnConnectContainer').prop('disabled', loading);
-    $('#connectContainerSelect').prop('disabled', loading);
+    $('#availableContainersSelect').prop('disabled', loading);
+    $('#attachedContainersSelect').prop('disabled', loading);
+    $('#btnMoveSelectedRight').prop('disabled', loading);
+    $('#btnMoveAllRight').prop('disabled', loading);
+    $('#btnMoveSelectedLeft').prop('disabled', loading);
+    $('#btnMoveAllLeft').prop('disabled', loading);
   }
+
+  var manageTransferState = {
+    available: [],
+    attached: []
+  };
 
   function connectedContainerList(network) {
     var map = (network && network.Containers) || {};
@@ -573,246 +592,282 @@
     });
   }
 
-  function renderConnectedContainers(network) {
-    var rows = connectedContainerList(network);
-    var tbody = $('#connectedContainersBody');
-    tbody.empty();
-
-    var connectedById = {};
-    rows.forEach(function (item) {
-      connectedById[item.id] = true;
-      connectedById[item.name] = true;
-    });
-
-    var hasConnected = rows.length > 0;
-    var hasScheduled = Object.keys(scheduledNetworksForCurrentNetwork).length > 0;
-
-    if (!hasConnected && !hasScheduled) {
-      tbody.html('<tr><td colspan="4" style="text-align:center;">No containers attached</td></tr>');
-      return;
-    }
-
-    // Show currently connected containers
-    rows.forEach(function (item) {
-      var tr = $('<tr></tr>');
-      tr.append('<td>' + escapeHtml(item.name) + '</td>');
-      tr.append('<td>' + escapeHtml(item.id) + '</td>');
-      tr.append('<td>' + escapeHtml(item.ipv4 || item.ipv6 || 'N/A') + '</td>');
-
-      var actionTd = $('<td></td>');
-      var disconnectBtn = $('<button type="button" class="button docker-networks-danger-button">Disconnect</button>');
-      disconnectBtn.on('click', function () {
-        disconnectContainer(item.id, item.name);
-      });
-      actionTd.append(disconnectBtn);
-      tr.append(actionTd);
-      tbody.append(tr);
-    });
-
-    // Show scheduled containers (will connect on startup)
-    if (hasScheduled) {
-      var uniqueScheduled = {};
-      Object.keys(scheduledNetworksForCurrentNetwork).forEach(function (key) {
-        var container = scheduledNetworksForCurrentNetwork[key];
-        uniqueScheduled[container.id] = container;
-      });
-
-      Object.keys(uniqueScheduled).forEach(function (containerId) {
-        var container = uniqueScheduled[containerId];
-        if (connectedById[containerId] || connectedById[container.name]) {
-          return;
-        }
-
-        var tr = $('<tr style="opacity: 0.7; font-style: italic;"></tr>');
-        tr.append('<td>' + escapeHtml(container.name) + '</td>');
-        tr.append('<td>' + escapeHtml(containerId) + '</td>');
-        tr.append('<td><span style="color: #ff9800;">Will connect on startup</span></td>');
-
-        var actionTd = $('<td></td>');
-        var disconnectBtn = $('<button type="button" class="button docker-networks-danger-button">Disconnect</button>');
-        disconnectBtn.on('click', function () {
-          disconnectContainer(containerId, container.name);
-        });
-        actionTd.append(disconnectBtn);
-        tr.append(actionTd);
-        tbody.append(tr);
-      });
-    }
+  function shortId(value) {
+    return String(value || '').substring(0, 12);
   }
 
-  function renderConnectSelect(network) {
-    var connected = {};
-    connectedContainerList(network).forEach(function (item) {
-      connected[item.id] = true;
-      connected[item.name] = true;
+  function buildManageTransferState(network) {
+    var connected = connectedContainerList(network);
+    var attached = [];
+    var attachedKeys = {};
+
+    connected.forEach(function (item) {
+      attached.push({
+        id: item.id,
+        name: item.name,
+        address: item.ipv4 || item.ipv6 || 'N/A',
+        scheduledOnly: false
+      });
+      attachedKeys[item.id] = true;
+      attachedKeys[item.name] = true;
     });
 
-    // Also filter out scheduled containers
+    var uniqueScheduled = {};
     Object.keys(scheduledNetworksForCurrentNetwork).forEach(function (key) {
-      connected[key] = true;
+      var container = scheduledNetworksForCurrentNetwork[key];
+      if (!container || !container.id) {
+        return;
+      }
+      uniqueScheduled[container.id] = container;
     });
 
-    var select = $('#connectContainerSelect');
-    select.empty();
-    select.append('<option value="">Select a container...</option>');
+    Object.keys(uniqueScheduled).forEach(function (containerId) {
+      var container = uniqueScheduled[containerId];
+      if (attachedKeys[containerId] || attachedKeys[container.name]) {
+        return;
+      }
+      attached.push({
+        id: containerId,
+        name: container.name || containerId,
+        address: 'Will connect on startup',
+        scheduledOnly: true
+      });
+      attachedKeys[containerId] = true;
+      attachedKeys[container.name || containerId] = true;
+    });
 
+    var available = [];
     allContainers.forEach(function (container) {
       if (!container || !container.id || !container.name) {
         return;
       }
-      if (connected[container.id] || connected[container.name]) {
+      if (attachedKeys[container.id] || attachedKeys[container.name]) {
         return;
       }
-      var label = container.name + ' (' + container.id.substring(0, 12) + ')';
-      select.append('<option value="' + escapeHtml(container.id) + '">' + escapeHtml(label) + '</option>');
+      available.push({
+        id: container.id,
+        name: container.name,
+        address: container.state || '',
+        scheduledOnly: false
+      });
+    });
+
+    available.sort(function (a, b) {
+      return a.name.localeCompare(b.name);
+    });
+    attached.sort(function (a, b) {
+      return a.name.localeCompare(b.name);
+    });
+
+    return {
+      available: available,
+      attached: attached
+    };
+  }
+
+  function optionLabelForItem(item, side) {
+    var parts = [];
+    parts.push(item.name || item.id || 'Unnamed');
+    parts.push('[' + shortId(item.id) + ']');
+    if (side === 'attached') {
+      parts.push(item.scheduledOnly ? '(scheduled)' : '(' + (item.address || 'N/A') + ')');
+    }
+    return parts.join(' ');
+  }
+
+  function renderTransferSelect(selectId, items, side) {
+    var select = $(selectId);
+    select.empty();
+
+    if (!items.length) {
+      var emptyOpt = $('<option></option>');
+      emptyOpt.text(side === 'available' ? 'No available containers' : 'No attached containers');
+      emptyOpt.prop('disabled', true);
+      select.append(emptyOpt);
+      return;
+    }
+
+    items.forEach(function (item, index) {
+      var option = $('<option></option>');
+      option.val(String(index));
+      option.text(optionLabelForItem(item, side));
+      select.append(option);
     });
   }
 
-  function connectSelectedContainer() {
+  function renderManageTransferLists(network) {
+    manageTransferState = buildManageTransferState(network);
+    renderTransferSelect('#availableContainersSelect', manageTransferState.available, 'available');
+    renderTransferSelect('#attachedContainersSelect', manageTransferState.attached, 'attached');
+  }
+
+  function getSelectedTransferItems(side) {
+    var selectId = side === 'available' ? '#availableContainersSelect' : '#attachedContainersSelect';
+    var source = side === 'available' ? manageTransferState.available : manageTransferState.attached;
+    var raw = $(selectId).val() || [];
+    return raw.map(function (value) {
+      var index = parseInt(value, 10);
+      return source[index];
+    }).filter(function (item) {
+      return !!item;
+    });
+  }
+
+  function findContainerMeta(item) {
+    return allContainers.find(function (container) {
+      if (!container) {
+        return false;
+      }
+      return container.id === item.id || container.name === item.name;
+    }) || null;
+  }
+
+  function runSequential(items, executor) {
+    var successes = [];
+    var failures = [];
+
+    return items.reduce(function (chain, item) {
+      return chain.then(function () {
+        return executor(item).then(function (data) {
+          successes.push({ item: item, data: data || {} });
+        }).catch(function (error) {
+          failures.push({ item: item, error: String(error) });
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      return { successes: successes, failures: failures };
+    });
+  }
+
+  function showBatchResult(title, actionWord, result, onClose) {
+    var successCount = result.successes.length;
+    var failureCount = result.failures.length;
+    var html = '<div class="swal-text-block">';
+    html += '<strong>' + successCount + '</strong> container(s) ' + escapeHtml(actionWord) + '.';
+
+    if (failureCount > 0) {
+      html += '<br><br><strong>' + failureCount + '</strong> failed:';
+      result.failures.slice(0, 5).forEach(function (entry) {
+        html += '<br>- ' + escapeHtml(entry.item.name || entry.item.id || 'Unknown') + ': ' + escapeHtml(entry.error);
+      });
+      if (failureCount > 5) {
+        html += '<br>- ...';
+      }
+    }
+
+    html += '</div>';
+    showActionResult(title, html, failureCount === 0, onClose);
+  }
+
+  function connectContainersBatch(items, ipAddress) {
     if (!currentNetwork || !currentNetwork.Id) {
       showActionResult('Error', '<div class="swal-text-block">No selected network</div>', false);
       return;
     }
 
-    var containerId = $('#connectContainerSelect').val();
-    if (!containerId) {
-      showActionResult('Error', '<div class="swal-text-block">Select a container to connect</div>', false);
+    if (!items.length) {
+      showActionResult('Nothing Selected', '<div class="swal-text-block">Select one or more containers to attach.</div>', false);
       return;
     }
 
-    // Find container in allContainers to get its state
-    var selectedContainer = allContainers.find(function (c) {
-      return c.id === containerId;
+    setManageLoading(true);
+    runSequential(items, function (item) {
+      var meta = findContainerMeta(item);
+      var payload = {
+        networkId: currentNetwork.Id,
+        containerId: item.id
+      };
+
+      if (meta && meta.name) {
+        payload.containerName = meta.name;
+      }
+      if (meta && meta.state) {
+        payload.containerState = meta.state;
+      }
+      if (ipAddress) {
+        payload.ipAddress = ipAddress;
+      }
+
+      return requestAction('connect', payload);
+    }).then(function (result) {
+      if (result.successes.length > 0) {
+        $('#connectContainerIpInput').val('');
+      }
+
+      showBatchResult('Attach Complete', 'attached', result, function () {
+        if (result.successes.length > 0) {
+          reloadDataAndRefreshManageModal();
+        }
+      });
+    }).finally(function () {
+      setManageLoading(false);
     });
+  }
 
-    // Get IP address input if provided
-    var ipAddress = $.trim($('#connectContainerIpInput').val() || '');
-
-    // Validate IP if provided
-    if (ipAddress !== '') {
-      var validation = validateIpAddress(ipAddress);
-      if (!validation.valid) {
-        showActionResult('Invalid IP Address', '<div class="swal-text-block">' + escapeHtml(validation.error) + '</div>', false);
-        logClient('IP validation failed', { ip: ipAddress, error: validation.error }, 'warn', 'ui');
-        return;
-      }
-      logClient('IP address provided', { ip: ipAddress }, 'debug', 'ui');
+  function disconnectContainersBatch(items) {
+    if (!currentNetwork || !currentNetwork.Id) {
+      showActionResult('Error', '<div class="swal-text-block">No selected network</div>', false);
+      return;
     }
 
-    var payload = {
-      networkId: currentNetwork.Id,
-      containerId: containerId
-    };
-    if (selectedContainer && selectedContainer.name) {
-      payload.containerName = selectedContainer.name;
-    }
-    if (ipAddress !== '') {
-      payload.ipAddress = ipAddress;
-    }
-    if (selectedContainer && selectedContainer.state) {
-      payload.containerState = selectedContainer.state;
+    if (!items.length) {
+      showActionResult('Nothing Selected', '<div class="swal-text-block">Select one or more containers to detach.</div>', false);
+      return;
     }
 
-    apiCall('connect', payload, function (data) {
-      if (!data.success) {
-        var errorMsg = data.error || 'Failed to connect container';
-        showActionResult('Connection Failed', '<div class="swal-text-block">' + escapeHtml(errorMsg) + '</div>', false);
-        logClient('Connect container failed', { error: errorMsg, containerId: containerId, state: selectedContainer ? selectedContainer.state : 'unknown' }, 'error', 'network');
-        return;
-      }
-
-      var message = 'Container connected';
-      if (data.ipAddress && data.ipAddress !== 'pending') {
-        message += ' (IP: ' + escapeHtml(data.ipAddress) + ')';
-      } else if (data.ipAddress === 'pending') {
-        message = 'Template updated—container will join network on startup';
-      }
-
-      var successMsg = '<div class="swal-text-block">' + escapeHtml(message) + '</div>';
-      if (data.warning) {
-        successMsg += '<br><span style="color: #ff9800;">' + escapeHtml(data.warning) + '</span>';
-      }
-
-      // Clear IP input after successful connection
-      $('#connectContainerIpInput').val('');
-
-      showActionResult('Connected', successMsg, true, function () {
-        reloadDataAndRefreshManageModal();
+    var confirmHtml = '<div class="swal-text-block">Detach <strong>' + items.length + '</strong> container(s) from <strong>' + escapeHtml(currentNetwork.Name || currentNetwork.Id) + '</strong>?</div>';
+    confirmAction('Detach Containers', confirmHtml, 'Detach', function () {
+      setManageLoading(true);
+      runSequential(items, function (item) {
+        var payload = {
+          networkId: currentNetwork.Id,
+          containerId: item.id
+        };
+        if (item.name) {
+          payload.containerName = item.name;
+        }
+        return requestAction('disconnect', payload);
+      }).then(function (result) {
+        showBatchResult('Detach Complete', 'detached', result, function () {
+          if (result.successes.length > 0) {
+            reloadDataAndRefreshManageModal();
+          }
+        });
+      }).finally(function () {
+        setManageLoading(false);
       });
     });
   }
 
-  function disconnectContainer(containerId, containerName) {
-    function performDisconnect(containerId, containerName) {
-      var confirmHtml = '<div class="swal-text-block">';
-      confirmHtml += 'Disconnect <strong>' + escapeHtml(containerName) + '</strong>';
-      if (currentNetwork && currentNetwork.Name) {
-        confirmHtml += ' from <strong>' + escapeHtml(currentNetwork.Name) + '</strong>';
+  function moveSelectedRight() {
+    var selected = getSelectedTransferItems('available');
+    var ipAddress = $.trim($('#connectContainerIpInput').val() || '');
+
+    if (ipAddress !== '') {
+      var validation = validateIpAddress(ipAddress);
+      if (!validation.valid) {
+        showActionResult('Invalid IP Address', '<div class="swal-text-block">' + escapeHtml(validation.error) + '</div>', false);
+        return;
       }
-      confirmHtml += '?';
-      confirmHtml += '</div>';
-
-      confirmAction(
-        'Disconnect Container',
-        confirmHtml,
-        'Disconnect',
-        function () {
-          showLoadingModal('Disconnecting Container', 'Removing network connection...');
-
-          var payload = { networkId: currentNetwork.Id, containerId: containerId };
-          if (containerName) {
-            payload.containerName = containerName;
-          }
-
-          apiCall('disconnect', payload, function (data) {
-            closeModal();
-
-            if (!data.success) {
-              logClient('Container disconnect failed', { error: data.error, container: containerId, network: currentNetwork.Id }, 'error', 'network');
-
-              var errorMsg = '<div class="swal-text-block">';
-              errorMsg += '<strong>Failed to disconnect container</strong><br>';
-              errorMsg += escapeHtml(data.error || 'Unknown error');
-              errorMsg += '</div>';
-
-              showActionResult('Disconnection Failed', errorMsg, false);
-              return;
-            }
-
-            // Build disconnect message with additional context
-            var resultMsg = '<div class="swal-text-block">';
-
-            if (data.containerName && data.networkName) {
-              resultMsg += '<strong>' + escapeHtml(data.containerName) + '</strong> disconnected from <strong>' + escapeHtml(data.networkName) + '</strong>';
-            } else {
-              resultMsg += '<strong>Container disconnected successfully</strong>';
-            }
-
-            if (data.ip) {
-              resultMsg += '<br>Previous IP: <code>' + escapeHtml(data.ip) + '</code>';
-            }
-
-            // Show warning if this was the only network
-            if (data.wasOnlyNetwork) {
-              resultMsg += '<br><span style="color: #ff5252;"><strong>⚠ This was the container\'s only network attachment. It may now be unreachable.</strong></span>';
-              logClient('Container disconnected from only network', { containerName: data.containerName, ip: data.ip }, 'warn', 'network');
-            } else if (data.warning) {
-              resultMsg += '<br><span style="color: #ff9800;">' + escapeHtml(data.warning) + '</span>';
-            }
-
-            resultMsg += '</div>';
-
-            logClient('Container disconnected', { container: containerId, network: currentNetwork.Id, wasOnlyNetwork: data.wasOnlyNetwork }, 'info', 'network');
-
-            showActionResult('Disconnected', resultMsg, true, function () {
-              reloadDataAndRefreshManageModal();
-            });
-          });
-        }
-      );
+      if (selected.length !== 1) {
+        showActionResult('IP Requires Single Selection', '<div class="swal-text-block">Provide an IP only when attaching exactly one container.</div>', false);
+        return;
+      }
     }
 
-    performDisconnect(containerId, containerName);
+    connectContainersBatch(selected, ipAddress);
+  }
+
+  function moveAllRight() {
+    connectContainersBatch(manageTransferState.available.slice(), '');
+  }
+
+  function moveSelectedLeft() {
+    disconnectContainersBatch(getSelectedTransferItems('attached'));
+  }
+
+  function moveAllLeft() {
+    disconnectContainersBatch(manageTransferState.attached.slice());
   }
 
   var deleteInProgress = false;
@@ -939,7 +994,10 @@
     $('#btnCancelEdit').on('click', closeEditModal);
     $('#closeManageModal').on('click', closeManageModal);
     $('#btnCloseManage').on('click', closeManageModal);
-    $('#btnConnectContainer').on('click', connectSelectedContainer);
+    $('#btnMoveSelectedRight').on('click', moveSelectedRight);
+    $('#btnMoveAllRight').on('click', moveAllRight);
+    $('#btnMoveSelectedLeft').on('click', moveSelectedLeft);
+    $('#btnMoveAllLeft').on('click', moveAllLeft);
 
     $('#createNetworkForm').on('submit', createNetwork);
     $('#editNetworkForm').on('submit', updateNetwork);

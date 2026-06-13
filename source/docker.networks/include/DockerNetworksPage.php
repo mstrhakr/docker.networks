@@ -166,17 +166,9 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
     </div>
 
     <div class="form-group">
-      <label for="connectContainerSelect">Attach Container:</label>
-      <select id="connectContainerSelect" name="connectContainerSelect"></select>
-    </div>
-
-    <div class="form-group">
-      <label for="connectContainerIpInput">IP Address (Optional):</label>
-      <input type="text" id="connectContainerIpInput" name="connectContainerIpInput" placeholder="Leave blank for auto-assignment" />
+      <label for="connectContainerIpInput">IP Address For Single Attach (Optional):</label>
+      <input type="text" id="connectContainerIpInput" name="connectContainerIpInput" placeholder="Used only when moving one container to Attached" />
       <small style="display: block; margin-top: 5px; color: #666;">Format: xxx.xxx.xxx.xxx (must be within network subnet)</small>
-      <div style="margin-top:10px;">
-        <button type="button" class="button orange-button" id="btnConnectContainer">Connect</button>
-      </div>
     </div>
 
     <div class="loading manage-loading" id="manageLoading">
@@ -184,19 +176,27 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
       <p>Loading network attachments...</p>
     </div>
 
-    <h3>Connected Containers</h3>
+    <h3>Container Attachments</h3>
     <div class="manage-table-wrap" id="manageTableWrap">
-      <table id="connectedContainersTable" class="small-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Container ID</th>
-            <th>Address</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="connectedContainersBody"></tbody>
-      </table>
+      <div class="dn-transfer-wrap">
+        <div class="dn-transfer-col">
+          <label for="availableContainersSelect">Available Containers</label>
+          <select id="availableContainersSelect" name="availableContainersSelect" multiple size="14"></select>
+        </div>
+
+        <div class="dn-transfer-actions" aria-label="Transfer controls">
+          <button type="button" class="button orange-button" id="btnMoveSelectedRight" title="Attach selected">&gt;</button>
+          <button type="button" class="button" id="btnMoveAllRight" title="Attach all">&gt;&gt;</button>
+          <button type="button" class="button" id="btnMoveSelectedLeft" title="Detach selected">&lt;</button>
+          <button type="button" class="button" id="btnMoveAllLeft" title="Detach all">&lt;&lt;</button>
+        </div>
+
+        <div class="dn-transfer-col">
+          <label for="attachedContainersSelect">Attached Containers</label>
+          <select id="attachedContainersSelect" name="attachedContainersSelect" multiple size="14"></select>
+        </div>
+      </div>
+      <small style="display: block; margin-top: 8px; color: #666;">Use Ctrl or Shift to select multiple containers.</small>
     </div>
 
     <div style="margin-top:15px;">
