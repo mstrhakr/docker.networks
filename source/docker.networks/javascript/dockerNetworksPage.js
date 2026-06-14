@@ -941,6 +941,95 @@
     });
   }
 
+  function updateTransferStateAfterConnect(successfulItems) {
+    // Remove successfully connected items from available list
+    manageTransferState.available = manageTransferState.available.filter(function (availItem) {
+      return !successfulItems.some(function (succItem) {
+        return succItem.id === availItem.id;
+      });
+    });
+
+    // Add successfully connected items to attached list (mark as not scheduled since they're now connected)
+    successfulItems.forEach(function (item) {
+      var existing = manageTransferState.attached.find(function (attItem) {
+        return attItem.id === item.id;
+      });
+
+      if (!existing) {
+        manageTransferState.attached.push({
+          id: item.id,
+          name: item.name,
+          address: 'N/A',
+          scheduledOnly: false
+        });
+      } else {
+        // Update scheduled-only item to be connected
+        existing.scheduledOnly = false;
+        existing.address = 'N/A';
+      }
+    });
+
+    // Re-sort and re-render
+    manageTransferState.attached.sort(function (a, b) {
+      return a.name.localeCompare(b.name);
+    });
+    renderTransferSelect('#availableContainersSelect', manageTransferState.available, 'available');
+    renderTransferSelect('#attachedContainersSelect', manageTransferState.attached, 'attached');
+
+    // Background refresh to ensure consistency
+    loadContainers().then(function () {
+      var networkId = currentNetwork ? currentNetwork.Id : null;
+      if (networkId) {
+        return loadScheduledNetworks(networkId);
+      }
+    }).catch(function (err) {
+      logClient('Background refresh failed', { error: String(err) }, 'debug', 'api');
+    });
+  }
+
+  function updateTransferStateAfterDisconnect(successfulItems) {
+    // Remove successfully disconnected items from attached list
+    manageTransferState.attached = manageTransferState.attached.filter(function (attItem) {
+      return !successfulItems.some(function (succItem) {
+        return succItem.id === attItem.id;
+      });
+    });
+
+    // Add successfully disconnected items back to available list
+    successfulItems.forEach(function (item) {
+      var containerMeta = findContainerMeta(item);
+      var existing = manageTransferState.available.find(function (availItem) {
+        return availItem.id === item.id;
+      });
+
+      if (!existing) {
+        manageTransferState.available.push({
+          id: item.id,
+          name: item.name,
+          address: containerMeta && containerMeta.state ? containerMeta.state : '',
+          scheduledOnly: false
+        });
+      }
+    });
+
+    // Re-sort and re-render
+    manageTransferState.available.sort(function (a, b) {
+      return a.name.localeCompare(b.name);
+    });
+    renderTransferSelect('#availableContainersSelect', manageTransferState.available, 'available');
+    renderTransferSelect('#attachedContainersSelect', manageTransferState.attached, 'attached');
+
+    // Background refresh to ensure consistency
+    loadContainers().then(function () {
+      var networkId = currentNetwork ? currentNetwork.Id : null;
+      if (networkId) {
+        return loadScheduledNetworks(networkId);
+      }
+    }).catch(function (err) {
+      logClient('Background refresh failed', { error: String(err) }, 'debug', 'api');
+    });
+  }
+
   function connectContainersBatch(items, ipAddress) {
     if (!currentNetwork || !currentNetwork.Id) {
       showActionResult('Error', '<div class="swal-text-block">No selected network</div>', false);
@@ -952,7 +1041,6 @@
       return;
     }
 
-    setManageLoading(true);
     runSequential(items, function (item) {
       var meta = findContainerMeta(item);
       var payload = {
@@ -974,15 +1062,14 @@
     }).then(function (result) {
       if (result.successes.length > 0) {
         $('#connectContainerIpInput').val('');
+        // Update UI immediately without reload
+        updateTransferStateAfterConnect(result.successes.map(function (s) { return s.item; }));
       }
 
-      showBatchResult('Attach', 'attached', result, function () {
-        if (result.successes.length > 0) {
-          reloadDataAndRefreshManageModal();
-        }
-      });
-    }).finally(function () {
-      setManageLoading(false);
+      showBatchResult('Attach', 'attached', result);
+    }).catch(function (err) {
+      logClient('Connect batch failed', { error: String(err) }, 'error', 'api');
+      showActionResult('Error', '<div class="swal-text-block">Failed to attach containers</div>', false);
     });
   }
 
@@ -999,7 +1086,6 @@
 
     var confirmHtml = '<div class="swal-text-block">Detach <strong>' + items.length + '</strong> container(s) from <strong>' + escapeHtml(currentNetwork.Name || currentNetwork.Id) + '</strong>?</div>';
     confirmAction('Detach Containers', confirmHtml, 'Detach', function () {
-      setManageLoading(true);
       runSequential(items, function (item) {
         var payload = {
           networkId: currentNetwork.Id,
@@ -1010,13 +1096,15 @@
         }
         return requestAction('disconnect', payload);
       }).then(function (result) {
-        showBatchResult('Detach', 'detached', result, function () {
-          if (result.successes.length > 0) {
-            reloadDataAndRefreshManageModal();
-          }
-        });
-      }).finally(function () {
-        setManageLoading(false);
+        if (result.successes.length > 0) {
+          // Update UI immediately without reload
+          updateTransferStateAfterDisconnect(result.successes.map(function (s) { return s.item; }));
+        }
+
+        showBatchResult('Detach', 'detached', result);
+      }).catch(function (err) {
+        logClient('Disconnect batch failed', { error: String(err) }, 'error', 'api');
+        showActionResult('Error', '<div class="swal-text-block">Failed to detach containers</div>', false);
       });
     });
   }
@@ -1102,7 +1190,16 @@
 
   function reloadDataAndRefreshManageModal() {
     setManageLoading(true);
-    loadNetworks({ refreshContainers: true }).catch(function (err) {
+    var networkId = currentNetwork ? currentNetwork.Id : null;
+    loadNetworks({ refreshContainers: true }).then(function () {
+      // Reload scheduled networks after containers are loaded
+      if (networkId) {
+        return loadScheduledNetworks(networkId);
+      }
+    }).then(function () {
+      // Re-render the modal with updated scheduled networks
+      refreshManageModal();
+    }).catch(function (err) {
       showActionResult('Refresh Failed', '<div class="swal-text-block">' + escapeHtml(String(err)) + '</div>', false);
     }).finally(function () {
       setManageLoading(false);
