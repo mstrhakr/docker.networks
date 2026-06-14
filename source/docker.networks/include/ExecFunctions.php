@@ -951,7 +951,7 @@ function dockerNetworksHandleConnectContainer(array $request): void
         dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
             'type' => 'connect',
             'success' => true,
-            'item' => ['id' => $containerId, 'name' => $containerName, 'scheduledOnly' => true],
+            'item' => ['id' => $containerId, 'name' => $containerName, 'scheduledOnly' => true, 'ipAddress' => 'pending'],
             'message' => 'Template updated—network will connect on startup',
         ]);
         dockerNetworksRespond(['success' => true, 'message' => 'Template updated—network will connect on startup', 'ipAddress' => 'pending', 'persisted' => true, 'warning' => 'This stopped container will join the network when it starts.']);
@@ -1027,12 +1027,22 @@ function dockerNetworksHandleConnectContainer(array $request): void
             'warning' => 'Runtime network change applied. Template XML persistence is disabled in Docker Networks settings.',
         ];
     
-    $assignedIp = $ipAddress ?: 'auto-assigned';
+    $assignedIp = $ipAddress;
+    if ($assignedIp === '') {
+        $assignedIp = dockerNetworksGetContainerNetworkIp($containerName, $networkId);
+    }
+    if ($assignedIp === '') {
+        $assignedIp = dockerNetworksGetContainerNetworkIp($containerRef, $networkId);
+    }
+    if ($assignedIp === '') {
+        $assignedIp = 'auto-assigned';
+    }
+
     dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'ipAddress' => $assignedIp, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
     dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
         'type' => 'connect',
         'success' => true,
-        'item' => ['id' => $containerId, 'name' => $containerName, 'scheduledOnly' => false],
+        'item' => ['id' => $containerId, 'name' => $containerName, 'scheduledOnly' => false, 'ipAddress' => $assignedIp],
         'message' => 'Container connected to network',
     ]);
 

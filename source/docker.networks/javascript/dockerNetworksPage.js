@@ -1094,16 +1094,21 @@
 
       if (!existing) {
         var isScheduledOnly = !!item.scheduledOnly;
+        var resolvedAddress = isScheduledOnly
+          ? 'Will connect on startup'
+          : (item.ipAddress && item.ipAddress !== 'auto-assigned' ? item.ipAddress : (item.ipAddress || 'N/A'));
         manageTransferState.attached.push({
           id: item.id,
           name: item.name,
-          address: isScheduledOnly ? 'Will connect on startup' : 'N/A',
+          address: resolvedAddress,
           scheduledOnly: isScheduledOnly
         });
       } else {
         // Update item mode from incoming result.
         existing.scheduledOnly = !!item.scheduledOnly;
-        existing.address = existing.scheduledOnly ? 'Will connect on startup' : 'N/A';
+        existing.address = existing.scheduledOnly
+          ? 'Will connect on startup'
+          : (item.ipAddress && item.ipAddress !== 'auto-assigned' ? item.ipAddress : (item.ipAddress || 'N/A'));
       }
     });
 
@@ -1201,7 +1206,8 @@
             return {
               id: s.item.id,
               name: s.item.name,
-              scheduledOnly: isScheduledOnly
+              scheduledOnly: isScheduledOnly,
+              ipAddress: data.ipAddress || ''
             };
           }));
         }
