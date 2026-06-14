@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.12.2152">
+<!ENTITY version     "2026.06.14.1156">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "2e2493f1549a36c1d7f14d55308c784b">
-<!ENTITY pkgBUILD    "0152">
+<!ENTITY packageMD5  "640360dd056954d99d11f4a63a6aaa7f">
+<!ENTITY pkgBUILD    "1556">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,9 +32,17 @@
 >
 
 <CHANGES>
-###2026.06.12.2152
-- Bug Fixes: rename configuration functions to avoid collision
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.12.2149...v2026.06.12.2152)
+###2026.06.14.1156
+- Features (sse): implement server-sent events for container connection updates and batch processing
+- Features (ui): enhance container connection and disconnection handling with immediate UI updates
+- Features (ui): enhance action result popup width handling and styling for attempt tables
+- Features (ui): enhance attempt reporting with detailed status table and icons
+- Features (api): enhance batch processing feedback with detailed attempt reporting
+- Features (ui): enhance container management interface with transfer controls and improved layout
+- Bug Fixes (sse): send ip address during sse to allow showing it as its being added
+- Bug Fixes (api): enhance error message extraction and handling for API responses
+- Bug Fixes (api): improve error handling in API calls and provide user-friendly messages
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.12.2152...v2026.06.14.1156)
 </CHANGES>
 
 <FILE Run="/bin/bash">
