@@ -671,6 +671,13 @@
 
   function closeManageModal() {
     currentNetwork = null;
+    if (currentEventSource) {
+      currentEventSource.close();
+      currentEventSource = null;
+    }
+    activeBatchRequestId = '';
+    batchFinalizeScheduled = false;
+    setActionInProgress(false);
     $('#manageModal').hide();
     setManageLoading(false);
   }
@@ -679,18 +686,148 @@
     var loading = !!isLoading;
     $('#manageLoading').toggle(loading);
     $('#manageTableWrap').toggle(!loading);
-    $('#availableContainersSelect').prop('disabled', loading);
-    $('#attachedContainersSelect').prop('disabled', loading);
-    $('#btnMoveSelectedRight').prop('disabled', loading);
-    $('#btnMoveAllRight').prop('disabled', loading);
-    $('#btnMoveSelectedLeft').prop('disabled', loading);
-    $('#btnMoveAllLeft').prop('disabled', loading);
+    var disabled = loading || actionInProgress;
+    $('#availableContainersSelect').prop('disabled', disabled);
+    $('#attachedContainersSelect').prop('disabled', disabled);
+    $('#btnMoveSelectedRight').prop('disabled', disabled);
+    $('#btnMoveAllRight').prop('disabled', disabled);
+    $('#btnMoveSelectedLeft').prop('disabled', disabled);
+    $('#btnMoveAllLeft').prop('disabled', disabled);
   }
 
   var manageTransferState = {
     available: [],
     attached: []
   };
+
+  var actionInProgress = false;
+  var currentEventSource = null;
+  var sseUpdateCount = 0;
+  var syncTransferStateTimer = null;
+  var activeBatchRequestId = '';
+  var batchFinalizeScheduled = false;
+
+  function isManageLoading() {
+    return $('#manageLoading').is(':visible');
+  }
+
+  function scheduleTransferStateSync() {
+    if (syncTransferStateTimer) {
+      clearTimeout(syncTransferStateTimer);
+      syncTransferStateTimer = null;
+    }
+
+    syncTransferStateTimer = setTimeout(function () {
+      if (actionInProgress) {
+        // Never run state reconciliation during an active batch action.
+        scheduleTransferStateSync();
+        return;
+      }
+
+      syncTransferStateTimer = null;
+      loadContainers().then(function () {
+        return loadNetworks({ refreshContainers: false });
+      }).then(function () {
+        var networkId = currentNetwork ? currentNetwork.Id : null;
+        if (networkId) {
+          return loadScheduledNetworks(networkId);
+        }
+      }).then(function () {
+        if (currentNetwork) {
+          refreshManageModal();
+        }
+      }).catch(function (err) {
+        logClient('Background refresh failed', { error: String(err) }, 'debug', 'api');
+      });
+    }, 350);
+  }
+
+  function setActionInProgress(isInProgress) {
+    actionInProgress = !!isInProgress;
+    var disabled = actionInProgress || isManageLoading();
+    $('#btnMoveSelectedRight').prop('disabled', disabled);
+    $('#btnMoveAllRight').prop('disabled', disabled);
+    $('#btnMoveSelectedLeft').prop('disabled', disabled);
+    $('#btnMoveAllLeft').prop('disabled', disabled);
+    $('#availableContainersSelect').prop('disabled', disabled);
+    $('#attachedContainersSelect').prop('disabled', disabled);
+  }
+
+  function finalizeActiveBatch(reason) {
+    if (!actionInProgress || batchFinalizeScheduled) {
+      return;
+    }
+
+    batchFinalizeScheduled = true;
+    logClient('Finalizing batch', { reason: reason, requestId: activeBatchRequestId }, 'debug', 'sse');
+
+    if (currentEventSource) {
+      currentEventSource.close();
+      currentEventSource = null;
+    }
+
+    activeBatchRequestId = '';
+    setActionInProgress(false);
+    scheduleTransferStateSync();
+    batchFinalizeScheduled = false;
+  }
+
+  function signalBatchComplete(requestId) {
+    if (!requestId) {
+      finalizeActiveBatch('missing_request_id');
+      return;
+    }
+
+    requestAction('signalBatchComplete', { requestId: requestId }).catch(function (err) {
+      logClient('Failed to signal batch complete', { requestId: requestId, error: String(err) }, 'debug', 'sse');
+      setTimeout(function () {
+        finalizeActiveBatch('signal_fallback_timeout');
+      }, 2000);
+    });
+  }
+
+  function listenForSSEUpdates(requestId) {
+    if (currentEventSource) {
+      currentEventSource.close();
+    }
+
+    sseUpdateCount = 0;
+    var sseUrl = apiBase + '?action=listenUpdates&requestId=' + encodeURIComponent(requestId);
+    currentEventSource = new EventSource(sseUrl);
+
+    currentEventSource.addEventListener('containerUpdate', function (event) {
+      try {
+        var update = JSON.parse(event.data);
+        if (update.type === 'connect' && update.success) {
+          sseUpdateCount++;
+          updateTransferStateAfterConnect([update.item]);
+        } else if (update.type === 'disconnect' && update.success) {
+          sseUpdateCount++;
+          updateTransferStateAfterDisconnect([update.item]);
+        }
+        logClient('SSE update received', { type: update.type, success: update.success }, 'debug', 'sse');
+      } catch (e) {
+        logClient('SSE parse error', { error: String(e) }, 'debug', 'sse');
+      }
+    });
+
+    currentEventSource.addEventListener('complete', function (event) {
+      if (requestId !== activeBatchRequestId) {
+        return;
+      }
+      logClient('SSE stream completed', {}, 'debug', 'sse');
+      finalizeActiveBatch('sse_complete');
+    });
+
+    currentEventSource.addEventListener('error', function (event) {
+      var state = currentEventSource ? currentEventSource.readyState : null;
+      logClient('SSE error', { readyState: state }, 'debug', 'sse');
+      if (currentEventSource && currentEventSource.readyState === EventSource.CLOSED) {
+        currentEventSource.close();
+        currentEventSource = null;
+      }
+    });
+  }
 
   function connectedContainerList(network) {
     var map = (network && network.Containers) || {};
@@ -956,16 +1093,17 @@
       });
 
       if (!existing) {
+        var isScheduledOnly = !!item.scheduledOnly;
         manageTransferState.attached.push({
           id: item.id,
           name: item.name,
-          address: 'N/A',
-          scheduledOnly: false
+          address: isScheduledOnly ? 'Will connect on startup' : 'N/A',
+          scheduledOnly: isScheduledOnly
         });
       } else {
-        // Update scheduled-only item to be connected
-        existing.scheduledOnly = false;
-        existing.address = 'N/A';
+        // Update item mode from incoming result.
+        existing.scheduledOnly = !!item.scheduledOnly;
+        existing.address = existing.scheduledOnly ? 'Will connect on startup' : 'N/A';
       }
     });
 
@@ -976,15 +1114,6 @@
     renderTransferSelect('#availableContainersSelect', manageTransferState.available, 'available');
     renderTransferSelect('#attachedContainersSelect', manageTransferState.attached, 'attached');
 
-    // Background refresh to ensure consistency
-    loadContainers().then(function () {
-      var networkId = currentNetwork ? currentNetwork.Id : null;
-      if (networkId) {
-        return loadScheduledNetworks(networkId);
-      }
-    }).catch(function (err) {
-      logClient('Background refresh failed', { error: String(err) }, 'debug', 'api');
-    });
   }
 
   function updateTransferStateAfterDisconnect(successfulItems) {
@@ -1019,18 +1148,13 @@
     renderTransferSelect('#availableContainersSelect', manageTransferState.available, 'available');
     renderTransferSelect('#attachedContainersSelect', manageTransferState.attached, 'attached');
 
-    // Background refresh to ensure consistency
-    loadContainers().then(function () {
-      var networkId = currentNetwork ? currentNetwork.Id : null;
-      if (networkId) {
-        return loadScheduledNetworks(networkId);
-      }
-    }).catch(function (err) {
-      logClient('Background refresh failed', { error: String(err) }, 'debug', 'api');
-    });
   }
 
   function connectContainersBatch(items, ipAddress) {
+    if (actionInProgress) {
+      return;
+    }
+
     if (!currentNetwork || !currentNetwork.Id) {
       showActionResult('Error', '<div class="swal-text-block">No selected network</div>', false);
       return;
@@ -1041,11 +1165,18 @@
       return;
     }
 
+    setActionInProgress(true);
+    var requestId = 'connect-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    activeBatchRequestId = requestId;
+    batchFinalizeScheduled = false;
+    listenForSSEUpdates(requestId);
+
     runSequential(items, function (item) {
       var meta = findContainerMeta(item);
       var payload = {
         networkId: currentNetwork.Id,
-        containerId: item.id
+        containerId: item.id,
+        requestId: requestId
       };
 
       if (meta && meta.name) {
@@ -1062,18 +1193,34 @@
     }).then(function (result) {
       if (result.successes.length > 0) {
         $('#connectContainerIpInput').val('');
-        // Update UI immediately without reload
-        updateTransferStateAfterConnect(result.successes.map(function (s) { return s.item; }));
+        if (sseUpdateCount === 0) {
+          // Fallback for environments where SSE events are unavailable
+          updateTransferStateAfterConnect(result.successes.map(function (s) {
+            var data = s.data || {};
+            var isScheduledOnly = data.ipAddress === 'pending' || (data.message && String(data.message).toLowerCase().indexOf('startup') !== -1);
+            return {
+              id: s.item.id,
+              name: s.item.name,
+              scheduledOnly: isScheduledOnly
+            };
+          }));
+        }
       }
 
       showBatchResult('Attach', 'attached', result);
     }).catch(function (err) {
       logClient('Connect batch failed', { error: String(err) }, 'error', 'api');
       showActionResult('Error', '<div class="swal-text-block">Failed to attach containers</div>', false);
+    }).finally(function () {
+      signalBatchComplete(requestId);
     });
   }
 
   function disconnectContainersBatch(items) {
+    if (actionInProgress) {
+      return;
+    }
+
     if (!currentNetwork || !currentNetwork.Id) {
       showActionResult('Error', '<div class="swal-text-block">No selected network</div>', false);
       return;
@@ -1086,10 +1233,17 @@
 
     var confirmHtml = '<div class="swal-text-block">Detach <strong>' + items.length + '</strong> container(s) from <strong>' + escapeHtml(currentNetwork.Name || currentNetwork.Id) + '</strong>?</div>';
     confirmAction('Detach Containers', confirmHtml, 'Detach', function () {
+      setActionInProgress(true);
+      var requestId = 'disconnect-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      activeBatchRequestId = requestId;
+      batchFinalizeScheduled = false;
+      listenForSSEUpdates(requestId);
+
       runSequential(items, function (item) {
         var payload = {
           networkId: currentNetwork.Id,
-          containerId: item.id
+          containerId: item.id,
+          requestId: requestId
         };
         if (item.name) {
           payload.containerName = item.name;
@@ -1097,19 +1251,27 @@
         return requestAction('disconnect', payload);
       }).then(function (result) {
         if (result.successes.length > 0) {
-          // Update UI immediately without reload
-          updateTransferStateAfterDisconnect(result.successes.map(function (s) { return s.item; }));
+          if (sseUpdateCount === 0) {
+            // Fallback for environments where SSE events are unavailable
+            updateTransferStateAfterDisconnect(result.successes.map(function (s) { return s.item; }));
+          }
         }
 
         showBatchResult('Detach', 'detached', result);
       }).catch(function (err) {
         logClient('Disconnect batch failed', { error: String(err) }, 'error', 'api');
         showActionResult('Error', '<div class="swal-text-block">Failed to detach containers</div>', false);
+      }).finally(function () {
+        signalBatchComplete(requestId);
       });
     });
   }
 
   function moveSelectedRight() {
+    if (actionInProgress) {
+      return;
+    }
+
     var selected = getSelectedTransferItems('available');
     var ipAddress = $.trim($('#connectContainerIpInput').val() || '');
 
@@ -1129,14 +1291,34 @@
   }
 
   function moveAllRight() {
-    connectContainersBatch(manageTransferState.available.slice(), '');
+    if (actionInProgress) {
+      return;
+    }
+
+    if (!manageTransferState.available.length) {
+      showActionResult('Nothing to Add', '<div class="swal-text-block">No available containers to attach.</div>', false);
+      return;
+    }
+
+    var confirmHtml = '<div class="swal-text-block">Attach <strong>' + manageTransferState.available.length + '</strong> container(s) to <strong>' + escapeHtml(currentNetwork.Name || currentNetwork.Id) + '</strong>?</div>';
+    confirmAction('Attach All Containers', confirmHtml, 'Attach All', function () {
+      connectContainersBatch(manageTransferState.available.slice(), '');
+    });
   }
 
   function moveSelectedLeft() {
+    if (actionInProgress) {
+      return;
+    }
+
     disconnectContainersBatch(getSelectedTransferItems('attached'));
   }
 
   function moveAllLeft() {
+    if (actionInProgress) {
+      return;
+    }
+
     disconnectContainersBatch(manageTransferState.attached.slice());
   }
 
@@ -1262,6 +1444,9 @@
 
     $('#btnCreateNetwork').on('click', openCreateModal);
     $('#btnRefreshNetworks').on('click', function () {
+      if (actionInProgress || $('#manageModal').is(':visible')) {
+        return;
+      }
       loadNetworks({ showLoading: true, refreshContainers: !!currentNetwork });
     });
     $('#btnPluginSettings').on('click', function () {
@@ -1287,6 +1472,9 @@
     loadContainers();
     logClient('Docker Networks UI initialized', { refreshMs: refreshMs }, 'info', 'ui');
     setInterval(function () {
+      if (actionInProgress || $('#manageModal').is(':visible')) {
+        return;
+      }
       loadNetworks({ refreshContainers: !!currentNetwork }).catch(function () {
         return undefined;
       });

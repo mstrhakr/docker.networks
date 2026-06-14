@@ -49,6 +49,12 @@ function dockerNetworksDispatchAction(array $request): void
     }
 
     switch ($action) {
+        case 'listenupdates':
+            dockerNetworksHandleListenUpdates($request);
+            return;
+        case 'signalbatchcomplete':
+            dockerNetworksHandleSignalBatchComplete($request);
+            return;
         case 'dockerlogger':
             dockerNetworksHandleClientLog($request);
             return;
@@ -80,6 +86,157 @@ function dockerNetworksDispatchAction(array $request): void
             dockerNetworksRespond(['success' => false, 'error' => 'Invalid action'], 400);
             return;
     }
+}
+
+function dockerNetworksSseBaseDir(): string
+{
+    return '/tmp/docker.networks-sse';
+}
+
+function dockerNetworksSseQueuePath(string $requestId): string
+{
+    return dockerNetworksSseBaseDir() . '/' . sha1($requestId) . '.queue';
+}
+
+function dockerNetworksSseEnsureDir(): bool
+{
+    $dir = dockerNetworksSseBaseDir();
+    if (is_dir($dir)) {
+        return true;
+    }
+
+    return @mkdir($dir, 0777, true) || is_dir($dir);
+}
+
+function dockerNetworksSseEmitQueuedEvent(string $requestId, string $eventType, array $payload): void
+{
+    if ($requestId === '' || !dockerNetworksSseEnsureDir()) {
+        return;
+    }
+
+    $record = [
+        'event' => $eventType,
+        'payload' => $payload,
+        'ts' => time(),
+    ];
+
+    $json = json_encode($record, JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return;
+    }
+
+    @file_put_contents(dockerNetworksSseQueuePath($requestId), $json . "\n", FILE_APPEND | LOCK_EX);
+}
+
+function dockerNetworksHandleListenUpdates(array $request): void
+{
+    $requestId = isset($request['requestId']) ? trim((string) $request['requestId']) : '';
+    if ($requestId === '') {
+        if (!headers_sent()) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+        }
+        echo json_encode(['success' => false, 'error' => 'requestId is required']);
+        return;
+    }
+
+    @set_time_limit(0);
+
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+    }
+
+    $queuePath = dockerNetworksSseQueuePath($requestId);
+    $offset = 0;
+    $startedAt = time();
+    $idleSeconds = 0;
+    $maxDurationSeconds = 180;
+    $maxIdleSeconds = 45;
+
+    while (!connection_aborted()) {
+        clearstatcache(true, $queuePath);
+        $hasNewData = false;
+        $shouldTerminate = false;
+
+        if (is_file($queuePath)) {
+            $content = @file_get_contents($queuePath);
+            if (is_string($content) && $content !== '') {
+                $len = strlen($content);
+                if ($len > $offset) {
+                    $chunk = substr($content, $offset);
+                    $offset = $len;
+                    $lines = explode("\n", $chunk);
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if ($line === '') {
+                            continue;
+                        }
+
+                        $record = json_decode($line, true);
+                        if (!is_array($record) || !isset($record['event']) || !isset($record['payload'])) {
+                            continue;
+                        }
+
+                        echo 'event: ' . (string) $record['event'] . "\n";
+                        echo 'data: ' . json_encode($record['payload'], JSON_UNESCAPED_SLASHES) . "\n\n";
+                        $hasNewData = true;
+                        if ((string) $record['event'] === 'complete') {
+                            $shouldTerminate = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($hasNewData) {
+            $idleSeconds = 0;
+            @ob_flush();
+            @flush();
+        } else {
+            $idleSeconds++;
+            // Keep connection alive for proxies.
+            echo ": keepalive\n\n";
+            @ob_flush();
+            @flush();
+        }
+
+        if ((time() - $startedAt) >= $maxDurationSeconds || $idleSeconds >= $maxIdleSeconds) {
+            echo "event: complete\n";
+            echo "data: {}\n\n";
+            @ob_flush();
+            @flush();
+            break;
+        }
+
+        if ($shouldTerminate) {
+            @ob_flush();
+            @flush();
+            break;
+        }
+
+        usleep(300000);
+    }
+
+    // Best effort cleanup once stream ends.
+    if (is_file($queuePath)) {
+        @unlink($queuePath);
+    }
+}
+
+function dockerNetworksHandleSignalBatchComplete(array $request): void
+{
+    $requestId = isset($request['requestId']) ? trim((string) $request['requestId']) : '';
+    if ($requestId === '') {
+        dockerNetworksRespond(['success' => false, 'error' => 'requestId is required'], 400);
+        return;
+    }
+
+    dockerNetworksSseEmitQueuedEvent($requestId, 'complete', ['ok' => true]);
+    dockerNetworksRespond(['success' => true]);
 }
 
 function dockerNetworksRespond(array $payload, int $statusCode = 200): void
@@ -729,6 +886,7 @@ function dockerNetworksHandleConnectContainer(array $request): void
     $containerNameHint = isset($request['containerName']) ? trim((string) $request['containerName']) : '';
     $ipAddress = isset($request['ipAddress']) ? trim((string) $request['ipAddress']) : '';
     $containerState = isset($request['containerState']) ? strtolower(trim((string) $request['containerState'])) : '';
+    $requestId = isset($request['requestId']) ? trim((string) $request['requestId']) : '';
 
     if ($networkId === '' || $containerId === '') {
         dockerNetworksRespond(['success' => false, 'error' => 'Network ID and Container ID are required'], 400);
@@ -767,6 +925,12 @@ function dockerNetworksHandleConnectContainer(array $request): void
         // Container is stopped
         if (!$isPersistenceEnabled) {
             dockerNetworksLogger('Connect failed: container stopped, persistence disabled', ['containerId' => $containerId, 'containerRef' => $containerRef, 'state' => $containerState], 'user', 'error', 'exec');
+            dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
+                'type' => 'connect',
+                'success' => false,
+                'item' => ['id' => $containerId, 'name' => $containerNameHint !== '' ? $containerNameHint : $containerId],
+                'message' => 'Container must be running to connect directly. Enable template XML persistence in Docker Networks settings to connect stopped containers.',
+            ]);
             dockerNetworksRespond(['success' => false, 'error' => 'Container must be running to connect directly. Enable template XML persistence in Docker Networks settings to connect stopped containers.'], 400);
             return;
         }
@@ -784,6 +948,12 @@ function dockerNetworksHandleConnectContainer(array $request): void
         }
 
         dockerNetworksLogger('Container template updated', ['containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'networkName' => $networkName], 'user', 'info', 'exec');
+        dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
+            'type' => 'connect',
+            'success' => true,
+            'item' => ['id' => $containerId, 'name' => $containerName, 'scheduledOnly' => true],
+            'message' => 'Template updated—network will connect on startup',
+        ]);
         dockerNetworksRespond(['success' => true, 'message' => 'Template updated—network will connect on startup', 'ipAddress' => 'pending', 'persisted' => true, 'warning' => 'This stopped container will join the network when it starts.']);
         return;
     }
@@ -840,6 +1010,12 @@ function dockerNetworksHandleConnectContainer(array $request): void
         }
 
         dockerNetworksLogger('Connect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $daemonError, 'friendlyError' => $friendlyError, 'statusCode' => $statusCode], 'user', 'error', 'exec');
+        dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
+            'type' => 'connect',
+            'success' => false,
+            'item' => ['id' => $containerId, 'name' => $containerName],
+            'message' => $friendlyError,
+        ]);
         dockerNetworksRespond(['success' => false, 'error' => $friendlyError], $statusCode);
         return;
     }
@@ -853,6 +1029,12 @@ function dockerNetworksHandleConnectContainer(array $request): void
     
     $assignedIp = $ipAddress ?: 'auto-assigned';
     dockerNetworksLogger('Container connected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'ipAddress' => $assignedIp, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+    dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
+        'type' => 'connect',
+        'success' => true,
+        'item' => ['id' => $containerId, 'name' => $containerName, 'scheduledOnly' => false],
+        'message' => 'Container connected to network',
+    ]);
 
     dockerNetworksRespond([
         'success' => true,
@@ -869,6 +1051,7 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
     $containerId = isset($request['containerId']) ? trim((string) $request['containerId']) : '';
     $containerNameHint = isset($request['containerName']) ? trim((string) $request['containerName']) : '';
+    $requestId = isset($request['requestId']) ? trim((string) $request['requestId']) : '';
 
     if ($networkId === '' || $containerId === '') {
         dockerNetworksRespond(['success' => false, 'error' => 'Network ID and Container ID are required'], 400);
@@ -905,6 +1088,12 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
 
         if ($result['exitCode'] !== 0) {
             dockerNetworksLogger('Disconnect container failed', ['networkId' => $networkId, 'containerId' => $containerId, 'containerRef' => $containerRef, 'output' => $result['output']], 'user', 'error', 'exec');
+            dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
+                'type' => 'disconnect',
+                'success' => false,
+                'item' => ['id' => $containerId, 'name' => $containerName],
+                'message' => $result['output'] ?: 'Failed to disconnect container',
+            ]);
             dockerNetworksRespond(['success' => false, 'error' => $result['output'] ?: 'Failed to disconnect container'], 500);
             return;
         }
@@ -935,6 +1124,12 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
     }
 
     dockerNetworksLogger('Container disconnected', ['networkId' => $networkId, 'networkName' => $networkName, 'containerId' => $containerId, 'containerRef' => $containerRef, 'containerName' => $containerName, 'ip' => $currentIp, 'wasOnlyNetwork' => $isOnlyNetwork, 'runtimeConnected' => $isRuntimeConnected, 'hadScheduledTemplateAttach' => $hasScheduledTemplateAttach, 'persisted' => $persist['persisted']], 'user', 'info', 'exec');
+    dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
+        'type' => 'disconnect',
+        'success' => true,
+        'item' => ['id' => $containerId, 'name' => $containerName],
+        'message' => $isRuntimeConnected ? 'Container disconnected from network' : 'Scheduled network connection removed',
+    ]);
 
     dockerNetworksRespond([
         'success' => true,

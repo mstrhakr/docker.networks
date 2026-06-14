@@ -5,7 +5,10 @@ declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
-header('Content-Type: application/json');
+$bootstrapAction = isset($_REQUEST['action']) ? strtolower(trim((string) $_REQUEST['action'])) : '';
+if ($bootstrapAction !== 'listenupdates') {
+    header('Content-Type: application/json');
+}
 
 register_shutdown_function(static function (): void {
     $lastError = error_get_last();
