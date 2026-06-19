@@ -4,7 +4,15 @@ Manage Docker networks directly from the Unraid web UI.
 
 ## Install
 
-### Option 1: Unraid Plugin Manager
+### Option 1: Unraid Community Applications
+
+In Unraid, go to **Apps** and search for:
+
+```text
+docker networks
+```
+
+### Option 2: Unraid Plugin Manager
 
 In Unraid, go to **Plugins → Install Plugin** and paste:
 
@@ -12,13 +20,6 @@ In Unraid, go to **Plugins → Install Plugin** and paste:
 https://raw.githubusercontent.com/mstrhakr/docker.networks/main/docker.networks.plg
 ```
 
-### Option 2: CLI
-
-Run on your Unraid server:
-
-```bash
-installplg https://raw.githubusercontent.com/mstrhakr/docker.networks/main/docker.networks.plg
-```
 
 ## Basic Usage
 
