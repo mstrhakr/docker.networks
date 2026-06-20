@@ -38,6 +38,7 @@ $currentLocation = (string)($cfg['MENU_LOCATION'] ?? 'Docker');
 if (!in_array($currentLocation, $validLocations, true)) {
     $currentLocation = 'Docker';
 }
+$currentDashboardTileEnabled = dockerNetworksSettingsCfgBool($cfg, 'DASHBOARD_TILE_ENABLED', true);
 $currentXmlTemplatePersist = dockerNetworksSettingsCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 $currentDebugToLog = dockerNetworksSettingsCfgBool($cfg, 'DEBUG_TO_LOG', false);
 
@@ -46,6 +47,7 @@ $statusType = 'success'; // 'success' | 'error'
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $requested = isset($_POST['MENU_LOCATION']) ? trim((string)$_POST['MENU_LOCATION']) : 'Docker';
+  $requestedDashboardTileEnabled = isset($_POST['DASHBOARD_TILE_ENABLED']) && (string)$_POST['DASHBOARD_TILE_ENABLED'] === '1';
   $requestedXmlTemplatePersist = isset($_POST['XML_TEMPLATE_PERSIST']) && (string)$_POST['XML_TEMPLATE_PERSIST'] === '1';
   $requestedDebugToLog = isset($_POST['DEBUG_TO_LOG']) && (string)$_POST['DEBUG_TO_LOG'] === '1';
     if (!in_array($requested, $validLocations, true)) {
@@ -58,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $existing = array_replace($existing, dockerNetworksSettingsLoadCfg($cfgPath));
     }
     $existing['MENU_LOCATION'] = $requested;
+    $existing['DASHBOARD_TILE_ENABLED'] = $requestedDashboardTileEnabled ? '1' : '0';
     $existing['XML_TEMPLATE_PERSIST'] = $requestedXmlTemplatePersist ? '1' : '0';
     $existing['DEBUG_TO_LOG'] = $requestedDebugToLog ? 'true' : 'false';
 
@@ -80,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($written) {
         $currentLocation = $requested;
+      $currentDashboardTileEnabled = $requestedDashboardTileEnabled;
       $currentXmlTemplatePersist = $requestedXmlTemplatePersist;
       $currentDebugToLog = $requestedDebugToLog;
         $statusMsg = 'Settings saved. Refresh the browser to apply the new menu placement.';
@@ -110,6 +114,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         Choose where the Docker Networks page appears in the Unraid navigation.
         After saving, refresh the browser to see the change.<br>
         The entry is hidden automatically when Docker is stopped.
+      </blockquote>
+    </dd>
+  </dl>
+
+  <dl>
+    <dt>_(Dashboard Tile)_:</dt>
+    <dd>
+      <label>
+        <input type="checkbox" name="DASHBOARD_TILE_ENABLED" value="1" <?= $currentDashboardTileEnabled ? 'checked' : '' ?>>
+        _(Show Docker Networks tile on the Dashboard)_
+      </label>
+      <blockquote class="inline_help">
+        Enabled by default. Disable to hide the dashboard tile entirely.
       </blockquote>
     </dd>
   </dl>
