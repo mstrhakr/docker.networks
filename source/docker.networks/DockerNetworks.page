@@ -1,11 +1,13 @@
 Author="mstrhakr"
 Type="php"
-Menu="Docker:2"
+Menu="Docker:99"
 Lock="true"
 Nchan="docker_load"
 Cond="$var['fsState'] == 'Started' && exec('/etc/rc.d/rc.docker status | grep -v \"not\"') && (!file_exists('/boot/config/plugins/docker.networks/docker.networks.cfg') ? true : exec(\"grep '^MENU_LOCATION=' /boot/config/plugins/docker.networks/docker.networks.cfg 2>/dev/null | grep -Ei '\\\"?Docker\\\"?$'\"))"
 Title="Networks"
 Icon="sitemap"
+Tag="sitemap"
+Code="f6ff"
 ---
 <?php
 require_once '/usr/local/emhttp/plugins/dynamix/include/Helpers.php';
