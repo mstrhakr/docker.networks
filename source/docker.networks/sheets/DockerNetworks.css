@@ -350,8 +350,6 @@
 #docker-networks-page .small-table { width: 100%; border-collapse: collapse; }
 
 #docker-networks-page .manage-table-wrap {
-  max-height: min(48vh, 460px);
-  overflow: auto;
   border: 1px solid var(--dn-border-color);
   border-radius: 6px;
   padding: 12px;
@@ -396,6 +394,10 @@
 
 #docker-networks-page .dn-transfer-actions .button {
   min-width: 56px;
+}
+
+#docker-networks-page .dn-transfer-actions .button::before {
+  content: none !important;
 }
 
 #docker-networks-page .dn-transfer-item-name {
@@ -603,7 +605,6 @@
   }
 
   #docker-networks-page .manage-table-wrap {
-    max-height: none;
     padding: 10px;
   }
 }
@@ -714,6 +715,11 @@
     justify-content: center;
   }
 
+  #docker-networks-page .manage-table-wrap {
+    max-height: min(48vh, 460px);
+    overflow: auto;
+  }
+
   #docker-networks-page .dn-transfer-actions .button {
     min-width: 56px;
     min-height: auto;
@@ -742,19 +748,40 @@
     flex: 1 1 0;
     min-width: 0;
   }
-}
 
-@media (max-width: 900px) {
+  /* Compact side-by-side dual-listbox */
   #docker-networks-page .dn-transfer-wrap {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px;
   }
 
   #docker-networks-page .dn-transfer-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* Icon-only buttons: hide text span, show data-icon via ::before */
+  #docker-networks-page .dn-transfer-actions .button .dn-btn-label {
+    display: none;
+  }
+
+  #docker-networks-page .dn-transfer-actions .button::before {
+    content: attr(data-icon) !important;
+  }
+
+  #docker-networks-page .dn-transfer-actions .button {
+    min-width: 44px;
+    width: 44px;
+    padding: 6px 4px;
+    text-align: center;
+    min-height: auto;
+    flex: none;
   }
 }
+
+
 
 #docker-networks-page .small-table th,
 #docker-networks-page .small-table td {
