@@ -1,8 +1,32 @@
 (function () {
   'use strict';
 
+  function readWindowBool(value, defaultValue) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+
+    if (typeof value === 'string') {
+      var normalized = value.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'on', 'enabled'].indexOf(normalized) !== -1) {
+        return true;
+      }
+      if (['0', 'false', 'no', 'off', 'disabled'].indexOf(normalized) !== -1) {
+        return false;
+      }
+    }
+
+    return defaultValue;
+  }
+
   var apiBase = window.dockerNetworksApiUrl || '/plugins/docker.networks/include/Exec.php';
   var refreshMs = (window.dockerNetworksRefreshInterval || 30) * 1000;
+  var showSystemNetworks = readWindowBool(window.dockerNetworksShowSystemNetworks, true);
+  var showDefaultNetworks = readWindowBool(window.dockerNetworksShowDefaultNetworks, true);
   var userNetworksPersist = false;
   var xmlTemplatePersist = false;
   var dockerSettingsUrl = window.dockerNetworksSettingsUrl || '/Settings/DockerSettings';
@@ -37,6 +61,16 @@
     }
     var parsed = parseInt(value, 10);
     return isNaN(parsed) ? 0 : parsed;
+  }
+
+  function networkIsSystem(net) {
+    var label = (net && net.ProtectionLabel) ? String(net.ProtectionLabel).toLowerCase() : '';
+    return label === 'system';
+  }
+
+  function networkIsDefault(net) {
+    var label = (net && net.ProtectionLabel) ? String(net.ProtectionLabel).toLowerCase() : '';
+    return label === 'default';
   }
 
   function networkSignature(net) {
@@ -511,7 +545,23 @@
     var tbody = $('#networksBody');
     networksById = {};
 
-    if (!networks || networks.length === 0) {
+    logClient('Filtering networks', { total: (networks || []).length, showSystemNetworks: showSystemNetworks }, 'debug', 'filter');
+
+    var visibleNetworks = (networks || []).filter(function (net) {
+      if (!showSystemNetworks && networkIsSystem(net)) {
+        logClient('Filtering out system network', { name: net.Name, label: net.ProtectionLabel }, 'debug', 'filter');
+        return false;
+      }
+      if (!showDefaultNetworks && networkIsDefault(net)) {
+        logClient('Filtering out default network', { name: net.Name, label: net.ProtectionLabel }, 'debug', 'filter');
+        return false;
+      }
+      return true;
+    });
+
+    logClient('After filter', { visible: visibleNetworks.length }, 'debug', 'filter');
+
+    if (!visibleNetworks.length) {
       tbody.empty();
       tbody.html('<tr><td colspan="6" style="text-align:center;">No networks found</td></tr>');
       return;
@@ -527,7 +577,7 @@
 
     var seen = {};
 
-    networks.forEach(function (net) {
+    visibleNetworks.forEach(function (net) {
       var key = networkKey(net);
       if (!key) {
         return;

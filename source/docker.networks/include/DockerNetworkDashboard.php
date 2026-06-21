@@ -37,7 +37,44 @@ function dockerNetworksDashboardRun(string $command): array
   ];
 }
 
-function dockerNetworksDashboardNetworkSummaries(): array
+function dockerNetworksDashboardIsSystemStyleName(string $name): bool
+{
+  $name = strtolower(trim($name));
+  if ($name === '') {
+    return false;
+  }
+
+  if (preg_match('/[^a-z0-9]/', $name)) {
+    return false;
+  }
+
+  return (bool)preg_match('/^(?:wg|br|bond|vlan|virbr|docker|podman|tun|tap|zt|tailscale)\d+$/', $name);
+}
+
+function dockerNetworksDashboardIsSystemNetwork(array $network): bool
+{
+  $name = strtolower(trim((string)($network['Name'] ?? '')));
+  if ($name !== '' && dockerNetworksDashboardIsSystemStyleName($name)) {
+    return true;
+  }
+
+  $driver = strtolower(trim((string)($network['Driver'] ?? '')));
+  $options = isset($network['Options']) && is_array($network['Options']) ? $network['Options'] : [];
+  $parent = trim((string)($options['parent'] ?? ''));
+  if ($parent !== '' && in_array($driver, ['macvlan', 'ipvlan'], true)) {
+    return true;
+  }
+
+  return false;
+}
+
+function dockerNetworksDashboardIsDefaultNetwork(array $network): bool
+{
+  $name = isset($network['Name']) ? strtolower(trim((string)$network['Name'])) : '';
+  return in_array($name, ['bridge', 'host', 'none'], true);
+}
+
+function dockerNetworksDashboardNetworkSummaries(bool $showSystemNetworks = true, bool $showDefaultNetworks = true): array
 {
   $listResult = dockerNetworksDashboardRun("docker network ls --format='{{.Name}}'");
   if ($listResult['exitCode'] !== 0 || $listResult['output'] === '') {
@@ -48,19 +85,33 @@ function dockerNetworksDashboardNetworkSummaries(): array
   $names = array_filter(array_map('trim', explode("\n", (string)$listResult['output'])));
   foreach ($names as $name) {
     $inspectResult = dockerNetworksDashboardRun(
-      "docker network inspect --format='{{json .Containers}}' " . escapeshellarg((string)$name)
+      "docker network inspect --format='{{json .}}' " . escapeshellarg((string)$name)
     );
 
-    $connections = 0;
-    if ($inspectResult['exitCode'] === 0) {
-      $containers = json_decode((string)$inspectResult['output'], true);
-      if (is_array($containers)) {
-        $connections = count($containers);
-      }
+    if ($inspectResult['exitCode'] !== 0) {
+      continue;
     }
 
+    $networkArray = json_decode((string)$inspectResult['output'], true);
+    if (!is_array($networkArray) || !isset($networkArray[0])) {
+      continue;
+    }
+
+    $network = $networkArray[0];
+
+    if (!$showSystemNetworks && dockerNetworksDashboardIsSystemNetwork($network)) {
+      continue;
+    }
+
+    if (!$showDefaultNetworks && dockerNetworksDashboardIsDefaultNetwork($network)) {
+      continue;
+    }
+
+    $containers = isset($network['Containers']) && is_array($network['Containers']) ? $network['Containers'] : [];
+    $connections = count($containers);
+
     $summaries[] = [
-      'name' => (string)$name,
+      'name' => (string)($network['Name'] ?? $name),
       'connections' => $connections,
     ];
   }
@@ -89,6 +140,9 @@ if (!$dashboardTileEnabled) {
   return;
 }
 
+$showSystemNetworks = dockerNetworksDashboardCfgBool($cfg, 'SHOW_SYSTEM_NETWORKS', true);
+$showDefaultNetworks = dockerNetworksDashboardCfgBool($cfg, 'SHOW_DEFAULT_NETWORKS', true);
+
 $menuLocation = strtolower(trim((string)($cfg['MENU_LOCATION'] ?? 'docker')));
 
 $openPath = '/Docker/DockerNetworks';
@@ -101,7 +155,7 @@ if ($menuLocation === 'tools') {
 $jsCardName = json_encode($cardName);
 
 $networkRows = '';
-$networkSummaries = dockerNetworksDashboardNetworkSummaries();
+$networkSummaries = dockerNetworksDashboardNetworkSummaries($showSystemNetworks, $showDefaultNetworks);
 $totalNetworks = count($networkSummaries);
 $activeNetworks = 0;
 if ($networkSummaries === []) {

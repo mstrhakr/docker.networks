@@ -25,6 +25,8 @@ $refreshInterval = isset($cfg['REFRESH_INTERVAL']) ? (int)$cfg['REFRESH_INTERVAL
 if ($refreshInterval <= 0) {
     $refreshInterval = 30;
 }
+$showSystemNetworks = dockerNetworksPageCfgBool($cfg, 'SHOW_SYSTEM_NETWORKS', true);
+$showDefaultNetworks = dockerNetworksPageCfgBool($cfg, 'SHOW_DEFAULT_NETWORKS', true);
 $xmlTemplatePersist = dockerNetworksPageCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 
 // Docker settings: mirror DockerClient.php — merge dynamix.docker.manager defaults with
@@ -52,6 +54,8 @@ if (function_exists('dockerNetworksLogger')) {
     ],
     'derived' => [
       'refreshInterval' => $refreshInterval,
+      'showSystemNetworks' => $showSystemNetworks,
+      'showDefaultNetworks' => $showDefaultNetworks,
       'userNetworksPersist' => $userNetworksPersist,
       'xmlTemplatePersist' => $xmlTemplatePersist,
     ],
@@ -61,6 +65,8 @@ if (function_exists('dockerNetworksLogger')) {
 <script>
 window.dockerNetworksApiUrl = '/plugins/docker.networks/include/Exec.php';
 window.dockerNetworksRefreshInterval = <?= (int)$refreshInterval ?>;
+window.dockerNetworksShowSystemNetworks = <?= $showSystemNetworks ? 'true' : 'false' ?>;
+window.dockerNetworksShowDefaultNetworks = <?= $showDefaultNetworks ? 'true' : 'false' ?>;
 window.dockerNetworksUserNetworksPersist = <?= $userNetworksPersist ? 'true' : 'false' ?>;
 window.dockerNetworksXmlTemplatePersist = <?= $xmlTemplatePersist ? 'true' : 'false' ?>;
 window.dockerNetworksSettingsUrl = '/Settings/DockerSettings';

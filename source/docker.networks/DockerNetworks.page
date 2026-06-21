@@ -13,5 +13,5 @@ require_once '/usr/local/emhttp/plugins/dynamix/include/Wrappers.php';
 ?>
 <link type="text/css" rel="stylesheet" href="<?php autov('/plugins/docker.networks/sheets/DockerNetworks.css'); ?>">
 <script src="<?php autov('/plugins/docker.networks/javascript/logger.js'); ?>" type="text/javascript"></script>
-<script src="<?php autov('/plugins/docker.networks/javascript/dockerNetworksPage.js'); ?>" type="text/javascript"></script>
 <?php include '/usr/local/emhttp/plugins/docker.networks/include/DockerNetworksPage.php'; ?>
+<script src="<?php autov('/plugins/docker.networks/javascript/dockerNetworksPage.js'); ?>" type="text/javascript"></script>

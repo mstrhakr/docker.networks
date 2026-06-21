@@ -39,6 +39,8 @@ if (!in_array($currentLocation, $validLocations, true)) {
     $currentLocation = 'Docker';
 }
 $currentDashboardTileEnabled = dockerNetworksSettingsCfgBool($cfg, 'DASHBOARD_TILE_ENABLED', true);
+$currentShowSystemNetworks = dockerNetworksSettingsCfgBool($cfg, 'SHOW_SYSTEM_NETWORKS', true);
+$currentShowDefaultNetworks = dockerNetworksSettingsCfgBool($cfg, 'SHOW_DEFAULT_NETWORKS', true);
 $currentXmlTemplatePersist = dockerNetworksSettingsCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 $currentDebugToLog = dockerNetworksSettingsCfgBool($cfg, 'DEBUG_TO_LOG', false);
 
@@ -48,6 +50,8 @@ $statusType = 'success'; // 'success' | 'error'
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $requested = isset($_POST['MENU_LOCATION']) ? trim((string)$_POST['MENU_LOCATION']) : 'Docker';
   $requestedDashboardTileEnabled = isset($_POST['DASHBOARD_TILE_ENABLED']) && (string)$_POST['DASHBOARD_TILE_ENABLED'] === '1';
+  $requestedShowSystemNetworks = isset($_POST['SHOW_SYSTEM_NETWORKS']) && (string)$_POST['SHOW_SYSTEM_NETWORKS'] === '1';
+  $requestedShowDefaultNetworks = isset($_POST['SHOW_DEFAULT_NETWORKS']) && (string)$_POST['SHOW_DEFAULT_NETWORKS'] === '1';
   $requestedXmlTemplatePersist = isset($_POST['XML_TEMPLATE_PERSIST']) && (string)$_POST['XML_TEMPLATE_PERSIST'] === '1';
   $requestedDebugToLog = isset($_POST['DEBUG_TO_LOG']) && (string)$_POST['DEBUG_TO_LOG'] === '1';
     if (!in_array($requested, $validLocations, true)) {
@@ -61,6 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $existing['MENU_LOCATION'] = $requested;
     $existing['DASHBOARD_TILE_ENABLED'] = $requestedDashboardTileEnabled ? '1' : '0';
+    $existing['SHOW_SYSTEM_NETWORKS'] = $requestedShowSystemNetworks ? '1' : '0';
+    $existing['SHOW_DEFAULT_NETWORKS'] = $requestedShowDefaultNetworks ? '1' : '0';
     $existing['XML_TEMPLATE_PERSIST'] = $requestedXmlTemplatePersist ? '1' : '0';
     $existing['DEBUG_TO_LOG'] = $requestedDebugToLog ? 'true' : 'false';
 
@@ -84,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($written) {
         $currentLocation = $requested;
       $currentDashboardTileEnabled = $requestedDashboardTileEnabled;
+      $currentShowSystemNetworks = $requestedShowSystemNetworks;
       $currentXmlTemplatePersist = $requestedXmlTemplatePersist;
       $currentDebugToLog = $requestedDebugToLog;
         $statusMsg = 'Settings saved. Refresh the browser to apply the new menu placement.';
@@ -127,6 +134,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </label>
       <blockquote class="inline_help">
         Enabled by default. Disable to hide the dashboard tile entirely.
+      </blockquote>
+    </dd>
+  </dl>
+
+  <dl>
+    <dt>_(System Networks)_:</dt>
+    <dd>
+      <label>
+        <input type="checkbox" name="SHOW_SYSTEM_NETWORKS" value="1" <?= $currentShowSystemNetworks ? 'checked' : '' ?>>
+        _(Show system networks in lists)_
+      </label>
+      <blockquote class="inline_help">
+        Enabled by default. Disable to hide system-managed networks in the Docker Networks page and dashboard tile.
+      </blockquote>
+    </dd>
+  </dl>
+
+  <dl>
+    <dt>_(Default Networks)_:</dt>
+    <dd>
+      <label>
+        <input type="checkbox" name="SHOW_DEFAULT_NETWORKS" value="1" <?= $currentShowDefaultNetworks ? 'checked' : '' ?>>
+        _(Show default networks in lists)_
+      </label>
+      <blockquote class="inline_help">
+        Enabled by default. Disable to hide default Docker networks (bridge, host, none) in the Docker Networks page and dashboard tile.
       </blockquote>
     </dd>
   </dl>
