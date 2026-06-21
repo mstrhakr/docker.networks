@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<link rel="stylesheet" type="text/css" href="/usr/local/emhttp/plugins/docker.networks/sheets/DockerNetworks.css" />
+<link rel="stylesheet" type="text/css" href="<?php autov('/plugins/docker.networks/sheets/DockerNetworks.css'); ?>" />
 
 <div class="title">
   <span class="left"><i class="fa fa-sitemap icon"></i>_(Display)_</span>
