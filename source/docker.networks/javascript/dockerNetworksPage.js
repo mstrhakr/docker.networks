@@ -524,7 +524,6 @@
     row.append($('<td></td>').text(String(networkPendingCount(net))));
 
     var actions = $('<td class="network-actions"></td>');
-    actions.append(createActionButton('Edit', 'button', function () { openEditModal(net); }));
     actions.append(createActionButton('Manage', 'button', function () { openManageModal(net); }));
     
     // Determine if delete button should be disabled and why
@@ -649,7 +648,10 @@
     }
 
     currentNetwork = refreshedNetwork;
-    $('#manageNetworkName').text((refreshedNetwork.Name || '') + ' (' + (refreshedNetwork.Id || '').substring(0, 12) + ')');
+    $('#manageEditNetworkName').text((refreshedNetwork.Name || '') + ' (' + (refreshedNetwork.Id || '').substring(0, 12) + ')');
+    $('#manageEditNetworkDriver').text(refreshedNetwork.Driver || '');
+    $('#manageEditNetworkSubnet').text(networkSubnet(refreshedNetwork));
+    $('#manageNetworkDesc').val(refreshedNetwork.Description || '');
     renderManageTransferLists(refreshedNetwork);
   }
 
@@ -692,21 +694,12 @@
     $('#createModal').hide();
   }
 
-  function openEditModal(network) {
-    $('#editNetworkId').val(network.Id || '');
-    $('#editNetworkName').text(network.Name || '');
-    $('#editNetworkDriver').text(network.Driver || '');
-    $('#editNetworkDesc').val(network.Description || '');
-    $('#editModal').show();
-  }
-
-  function closeEditModal() {
-    $('#editModal').hide();
-  }
-
   function openManageModal(network) {
     currentNetwork = network;
-    $('#manageNetworkName').text((network.Name || '') + ' (' + (network.Id || '').substring(0, 12) + ')');
+    $('#manageEditNetworkName').text((network.Name || '') + ' (' + (network.Id || '').substring(0, 12) + ')');
+    $('#manageEditNetworkDriver').text(network.Driver || '');
+    $('#manageEditNetworkSubnet').text(networkSubnet(network));
+    $('#manageNetworkDesc').val(network.Description || '');
     setManageLoading(true);
     $('#manageModal').show();
 
@@ -729,6 +722,7 @@
     batchFinalizeScheduled = false;
     setActionInProgress(false);
     $('#manageModal').hide();
+    $('#manageNetworkDetailsForm')[0].reset();
     setManageLoading(false);
   }
 
@@ -737,6 +731,8 @@
     $('#manageLoading').toggle(loading);
     $('#manageTableWrap').toggle(!loading);
     var disabled = loading || actionInProgress;
+    $('#manageNetworkDesc').prop('disabled', disabled);
+    $('#btnSaveManageDetails').prop('disabled', disabled);
     $('#availableContainersSelect').prop('disabled', disabled);
     $('#attachedContainersSelect').prop('disabled', disabled);
     $('#btnMoveSelectedRight').prop('disabled', disabled);
@@ -795,6 +791,8 @@
   function setActionInProgress(isInProgress) {
     actionInProgress = !!isInProgress;
     var disabled = actionInProgress || isManageLoading();
+    $('#manageNetworkDesc').prop('disabled', disabled);
+    $('#btnSaveManageDetails').prop('disabled', disabled);
     $('#btnMoveSelectedRight').prop('disabled', disabled);
     $('#btnMoveAllRight').prop('disabled', disabled);
     $('#btnMoveSelectedLeft').prop('disabled', disabled);
@@ -1466,18 +1464,22 @@
     });
   }
 
-  function updateNetwork(event) {
+  function updateManageNetworkDetails(event) {
     event.preventDefault();
+    if (!currentNetwork || !currentNetwork.Id) {
+      showActionResult('Update Failed', '<div class="swal-text-block">No selected network</div>', false);
+      return;
+    }
+
     var payload = {
-      id: $('#editNetworkId').val(),
-      description: $('#editNetworkDesc').val()
+      id: currentNetwork.Id,
+      description: $('#manageNetworkDesc').val()
     };
 
     apiCall('update', payload, function (data) {
       if (data.success) {
         logClient('Network updated', { id: payload.id }, 'info', 'network');
         showActionResult('Updated', '<div class="swal-text-block">Network updated</div>', true, function () {
-          closeEditModal();
           loadNetworks({ refreshContainers: false });
         });
       } else {
@@ -1510,8 +1512,6 @@
     });
     $('#closeCreateModal').on('click', closeCreateModal);
     $('#btnCancelCreate').on('click', closeCreateModal);
-    $('#closeEditModal').on('click', closeEditModal);
-    $('#btnCancelEdit').on('click', closeEditModal);
     $('#closeManageModal').on('click', closeManageModal);
     $('#btnCloseManage').on('click', closeManageModal);
     $('#btnMoveSelectedRight').on('click', moveSelectedRight);
@@ -1520,7 +1520,7 @@
     $('#btnMoveAllLeft').on('click', moveAllLeft);
 
     $('#createNetworkForm').on('submit', createNetwork);
-    $('#editNetworkForm').on('submit', updateNetwork);
+  $('#manageNetworkDetailsForm').on('submit', updateManageNetworkDetails);
 
     loadNetworks({ showLoading: true, refreshContainers: false }).catch(function () {
       return undefined;

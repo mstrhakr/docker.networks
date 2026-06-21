@@ -217,6 +217,44 @@
   color: var(--dn-text-color);
 }
 
+#docker-networks-page .dn-inline-save-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#docker-networks-page .dn-inline-save-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#docker-networks-page .dn-inline-save-btn {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#docker-networks-page .modal-header h2.manage-modal-title {
+  margin: 0;
+  font-size: 1.4rem;
+  line-height: 1.25;
+}
+
+#docker-networks-page .dn-manage-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+#docker-networks-page .dn-manage-meta-grid .form-group {
+  margin-bottom: 0;
+}
+
 #docker-networks-page .alert { padding: 15px; margin: 10px 0; border-radius: 4px; }
 
 #docker-networks-page .alert.dn-banner {
@@ -502,7 +540,6 @@
 }
 
 #docker-networks-page #createNetworkForm .button,
-#docker-networks-page #editNetworkForm .button,
 #docker-networks-page #manageModal #btnCloseManage {
   width: 100%;
   margin: 6px 0 0;
@@ -529,6 +566,15 @@
 }
 
 @media (max-width: 640px) {
+  #docker-networks-page .modal-header h2.manage-modal-title {
+    font-size: 1.2rem;
+  }
+
+  #docker-networks-page .dn-manage-meta-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
   #docker-networks-page #networksTable td.network-actions .button,
   #docker-networks-page #networksTable td.network-actions .btn,
   #docker-networks-page .dn-transfer-actions .button {
@@ -633,7 +679,6 @@
   }
 
   #docker-networks-page #createNetworkForm .button,
-  #docker-networks-page #editNetworkForm .button,
   #docker-networks-page #manageModal #btnCloseManage {
     width: auto;
     margin: 2px;

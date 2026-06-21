@@ -133,49 +133,39 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
   </div>
 </div>
 
-<div id="editModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2>Edit Network</h2>
-      <span class="close" id="closeEditModal">&times;</span>
-    </div>
-    <form id="editNetworkForm">
-      <input type="hidden" id="editNetworkId">
-      <div class="form-group">
-        <label>Network Name:</label>
-        <p id="editNetworkName"></p>
-      </div>
-      <div class="form-group">
-        <label>Driver:</label>
-        <p id="editNetworkDriver"></p>
-      </div>
-      <div class="form-group">
-        <label for="editNetworkDesc">Description:</label>
-        <input type="text" id="editNetworkDesc" name="description" placeholder="Optional description">
-      </div>
-      <button type="submit" class="button orange-button">Save</button>
-      <button type="button" class="button" id="btnCancelEdit">Cancel</button>
-    </form>
-  </div>
-</div>
-
 <div id="manageModal" class="modal">
   <div class="modal-content modal-wide manage-modal-content">
     <div class="modal-header">
-      <h2>Manage Network Attachments</h2>
+      <h2 class="manage-modal-title">Network Details &amp; Attachments</h2>
       <span class="close" id="closeManageModal">&times;</span>
     </div>
 
-    <div class="form-group">
-      <label>Network:</label>
-      <p id="manageNetworkName"></p>
+    <div class="dn-manage-meta-grid">
+      <div class="form-group">
+        <label>Network Name:</label>
+        <p id="manageEditNetworkName"></p>
+      </div>
+      <div class="form-group">
+        <label>Driver:</label>
+        <p id="manageEditNetworkDriver"></p>
+      </div>
+      <div class="form-group">
+        <label>Subnet:</label>
+        <p id="manageEditNetworkSubnet"></p>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="connectContainerIpInput">IP Address For Single Attach (Optional):</label>
-      <input type="text" id="connectContainerIpInput" name="connectContainerIpInput" placeholder="Used only when moving one container to Attached" />
-      <small style="display: block; margin-top: 5px; color: #666;">Format: xxx.xxx.xxx.xxx (must be within network subnet)</small>
-    </div>
+    <form id="manageNetworkDetailsForm">
+      <div class="form-group">
+        <label for="manageNetworkDesc">Description:</label>
+        <div class="dn-inline-save-row">
+          <input type="text" id="manageNetworkDesc" name="description" placeholder="Optional description">
+          <button type="submit" class="button orange-button dn-inline-save-btn" id="btnSaveManageDetails" title="Save description" aria-label="Save description">
+            <i class="fa fa-save" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    </form>
 
     <div class="loading manage-loading" id="manageLoading">
       <div class="docker-networks-spinner"></div>
@@ -203,6 +193,12 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
         </div>
       </div>
       <small style="display: block; margin-top: 8px; color: #666;">Use Ctrl or Shift to select multiple containers.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="connectContainerIpInput">IP Address For Single Attach (Optional):</label>
+      <input type="text" id="connectContainerIpInput" name="connectContainerIpInput" placeholder="Used only when moving one container to Attached" />
+      <small style="display: block; margin-top: 5px; color: #666;">Format: xxx.xxx.xxx.xxx (must be within network subnet)</small>
     </div>
 
     <div style="margin-top:15px;">
