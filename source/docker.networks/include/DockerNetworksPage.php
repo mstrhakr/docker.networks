@@ -190,10 +190,10 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
         </div>
 
         <div class="dn-transfer-actions" aria-label="Transfer controls">
-          <button type="button" class="button orange-button" id="btnMoveSelectedRight" title="Attach selected">&gt;</button>
-          <button type="button" class="button" id="btnMoveAllRight" title="Attach all">&gt;&gt;</button>
-          <button type="button" class="button" id="btnMoveSelectedLeft" title="Detach selected">&lt;</button>
-          <button type="button" class="button" id="btnMoveAllLeft" title="Detach all">&lt;&lt;</button>
+          <button type="button" class="button orange-button" id="btnMoveSelectedRight" title="Attach selected">Attach Selected</button>
+          <button type="button" class="button" id="btnMoveAllRight" title="Attach all">Attach All</button>
+          <button type="button" class="button" id="btnMoveSelectedLeft" title="Detach selected">Detach Selected</button>
+          <button type="button" class="button" id="btnMoveAllLeft" title="Detach all">Detach All</button>
         </div>
 
         <div class="dn-transfer-col">
