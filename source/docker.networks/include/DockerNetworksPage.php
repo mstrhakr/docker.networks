@@ -17,6 +17,17 @@ function dockerNetworksPageCfgBool(array $cfg, string $key, bool $default = fals
   return in_array($value, ['1', 'true', 'yes', 'on', 'preserve', 'enabled'], true);
 }
 
+function dockerNetworksPageRenderActions(): string
+{
+  return <<<HTML
+<div class="docker-networks-actions" data-location="page-controls">
+  <button class="button orange-button dn-page-action" data-action="create" type="button">+ Create Network</button>
+  <button class="button dn-page-action" data-action="refresh" type="button">Refresh</button>
+  <button class="button dn-page-action" data-action="settings" type="button">Settings</button>
+</div>
+HTML;
+}
+
 // Plugin settings: use Unraid-idiomatic parse_plugin_cfg (merges default.cfg + user cfg,
 // strips # comments, same behaviour as the rest of the Unraid framework).
 $cfg = function_exists('parse_plugin_cfg') ? ((array)(parse_plugin_cfg('docker.networks') ?: [])) : [];
@@ -79,11 +90,7 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
 <div class="alert" id="dockerUserNetworksWarning" style="display:none;"></div>
 <div class="alert" id="dockerTemplatePersistenceWarning" style="display:none;"></div>
 
-<div class="docker-networks-actions">
-  <button class="button orange-button" id="btnCreateNetwork" type="button">+ Create Network</button>
-  <button class="button" id="btnRefreshNetworks" type="button">Refresh</button>
-  <button class="button" id="btnPluginSettings" type="button">Settings</button>
-</div>
+<?= dockerNetworksPageRenderActions() ?>
 
 <div class="loading" id="loading">
   <div class="docker-networks-spinner"></div>
@@ -103,6 +110,8 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
   </thead>
   <tbody id="networksBody"></tbody>
 </table>
+
+<?= dockerNetworksPageRenderActions() ?>
 
 <div id="createModal" class="modal">
   <div class="modal-content">

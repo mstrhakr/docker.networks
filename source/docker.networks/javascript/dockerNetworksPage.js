@@ -1500,15 +1500,25 @@
     updateUserNetworksWarning();
     updateTemplatePersistenceWarning();
 
-    $('#btnCreateNetwork').on('click', openCreateModal);
-    $('#btnRefreshNetworks').on('click', function () {
-      if (actionInProgress || $('#manageModal').is(':visible')) {
+    $('#docker-networks-page').on('click', '.dn-page-action', function () {
+      var action = $(this).data('action');
+
+      if (action === 'create') {
+        openCreateModal();
         return;
       }
-      loadNetworks({ showLoading: true, refreshContainers: !!currentNetwork });
-    });
-    $('#btnPluginSettings').on('click', function () {
-      window.location.href = pluginSettingsUrl;
+
+      if (action === 'refresh') {
+        if (actionInProgress || $('#manageModal').is(':visible')) {
+          return;
+        }
+        loadNetworks({ showLoading: true, refreshContainers: !!currentNetwork });
+        return;
+      }
+
+      if (action === 'settings') {
+        window.location.href = pluginSettingsUrl;
+      }
     });
     $('#closeCreateModal').on('click', closeCreateModal);
     $('#btnCancelCreate').on('click', closeCreateModal);
