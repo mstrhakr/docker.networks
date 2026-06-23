@@ -1,27 +1,17 @@
 <?php
-$cardName = 'docker-networks';
+require_once __DIR__ . '/Logger.php';
 $cfgPath = '/boot/config/plugins/docker.networks/docker.networks.cfg';
 $defaultCfgPath = '/usr/local/emhttp/plugins/docker.networks/default.cfg';
-
-function dockerNetworksDashboardLoadCfg(string $path): array
-{
-  $raw = @file_get_contents($path);
-  if ($raw === false) {
-    return [];
-  }
-
-  $sanitized = preg_replace('/^#[^\n]*(\n|$)/m', '', $raw);
-  $parsed = @parse_ini_string((string)$sanitized, false, INI_SCANNER_RAW);
-  return is_array($parsed) ? $parsed : [];
-}
 
 function dockerNetworksDashboardCfgBool(array $cfg, string $key, bool $default = false): bool
 {
   if (!isset($cfg[$key])) {
+    dnLogDebug("Cfg key '{$key}' not found, using default: " . ($default ? 'true' : 'false'), [], 'dashboard');
     return $default;
   }
 
   $value = strtolower(trim((string)$cfg[$key], " \t\n\r\0\x0B\"'"));
+  dnLogDebug("Cfg key '{$key}' found, value: '{$value}'", [], 'dashboard');
   return in_array($value, ['1', 'true', 'yes', 'on', 'enabled'], true);
 }
 
@@ -29,6 +19,7 @@ function dockerNetworksDashboardRun(string $command): array
 {
   $output = [];
   $exitCode = 0;
+  dnLogDebug("Running command: {$command}", [], 'dashboard');
   exec($command . ' 2>&1', $output, $exitCode);
 
   return [
@@ -41,13 +32,16 @@ function dockerNetworksDashboardIsSystemStyleName(string $name): bool
 {
   $name = strtolower(trim($name));
   if ($name === '') {
+    dnLogDebug("Network name is empty, not a system-style name", ['name' => $name], 'dashboard');
     return false;
   }
 
   if (preg_match('/[^a-z0-9]/', $name)) {
+    dnLogDebug("Network name '{$name}' contains invalid characters, not a system-style name", ['name' => $name], 'dashboard'); 
     return false;
   }
 
+  dnLogDebug("Network name '{$name}' is a system-style name", ['name' => $name], 'dashboard');
   return (bool)preg_match('/^(?:wg|br|bond|vlan|virbr|docker|podman|tun|tap|zt|tailscale)\d+$/', $name);
 }
 
@@ -55,6 +49,7 @@ function dockerNetworksDashboardIsSystemNetwork(array $network): bool
 {
   $name = strtolower(trim((string)($network['Name'] ?? '')));
   if ($name !== '' && dockerNetworksDashboardIsSystemStyleName($name)) {
+    dnLogDebug("Network '{$name}' is a system network based on its name", ['name' => $name], 'dashboard');
     return true;
   }
 
@@ -62,54 +57,84 @@ function dockerNetworksDashboardIsSystemNetwork(array $network): bool
   $options = isset($network['Options']) && is_array($network['Options']) ? $network['Options'] : [];
   $parent = trim((string)($options['parent'] ?? ''));
   if ($parent !== '' && in_array($driver, ['macvlan', 'ipvlan'], true)) {
+    dnLogDebug("Network '{$name}' is a system network based on its driver and parent", ['name' => $name, 'driver' => $driver, 'parent' => $parent], 'dashboard');
     return true;
   }
 
+  dnLogDebug("Network '{$name}' is not a system network", ['name' => $name, 'driver' => $driver, 'options' => $options], 'dashboard');
   return false;
 }
 
 function dockerNetworksDashboardIsDefaultNetwork(array $network): bool
 {
   $name = isset($network['Name']) ? strtolower(trim((string)$network['Name'])) : '';
+  dnLogDebug("Checking if network '{$name}' is a default network", ['name' => $name], 'dashboard');
   return in_array($name, ['bridge', 'host', 'none'], true);
 }
 
 function dockerNetworksDashboardNetworkSummaries(bool $showSystemNetworks = true, bool $showDefaultNetworks = true): array
 {
   $listResult = dockerNetworksDashboardRun("docker network ls --format='{{.Name}}'");
+  dnLogDebug("Docker network list result", ['exitCode' => $listResult['exitCode'], 'output' => $listResult['output']], 'dashboard');
   if ($listResult['exitCode'] !== 0 || $listResult['output'] === '') {
     return [];
   }
 
   $summaries = [];
   $names = array_filter(array_map('trim', explode("\n", (string)$listResult['output'])));
+
   foreach ($names as $name) {
     $inspectResult = dockerNetworksDashboardRun(
       "docker network inspect --format='{{json .}}' " . escapeshellarg((string)$name)
+    );
+
+    dnLogDebug(
+      "Docker network inspect result for '{$name}'",
+      ['exitCode' => $inspectResult['exitCode'], 'output' => $inspectResult['output']],
+      'dashboard'
     );
 
     if ($inspectResult['exitCode'] !== 0) {
       continue;
     }
 
-    $networkArray = json_decode((string)$inspectResult['output'], true);
-    if (!is_array($networkArray) || !isset($networkArray[0])) {
+    $decoded = json_decode((string)$inspectResult['output'], true);
+    if (!is_array($decoded)) {
+      dnLogDebug(
+        "Docker network inspect output for '{$name}' is not valid JSON",
+        ['output' => $inspectResult['output']],
+        'dashboard'
+      );
       continue;
     }
 
-    $network = $networkArray[0];
+    // With --format='{{json .}}' Docker prints a single object, not an array.
+    // Still support array output just in case.
+    $network = isset($decoded[0]) ? $decoded[0] : $decoded;
+
+    if (!is_array($network)) {
+      dnLogDebug(
+        "Docker network inspect output for '{$name}' is not a usable network object",
+        ['output' => $inspectResult['output']],
+        'dashboard'
+      );
+      continue;
+    }
 
     if (!$showSystemNetworks && dockerNetworksDashboardIsSystemNetwork($network)) {
+      dnLogDebug("Skipping system network '{$name}' because showSystemNetworks is false", ['name' => $name], 'dashboard');
       continue;
     }
 
     if (!$showDefaultNetworks && dockerNetworksDashboardIsDefaultNetwork($network)) {
+      dnLogDebug("Skipping default network '{$name}' because showDefaultNetworks is false", ['name' => $name], 'dashboard');
       continue;
     }
 
     $containers = isset($network['Containers']) && is_array($network['Containers']) ? $network['Containers'] : [];
     $connections = count($containers);
 
+    dnLogDebug("Network '{$name}' has {$connections} connections", ['name' => $name, 'connections' => $connections], 'dashboard');
     $summaries[] = [
       'name' => (string)($network['Name'] ?? $name),
       'connections' => $connections,
@@ -127,16 +152,15 @@ function dockerNetworksDashboardNetworkSummaries(bool $showSystemNetworks = true
     return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
   });
 
+  dnLogDebug("Final sorted network summaries", ['summaries' => $summaries], 'dashboard');
   return $summaries;
 }
 
-$cfg = file_exists($defaultCfgPath) ? dockerNetworksDashboardLoadCfg($defaultCfgPath) : [];
-if (file_exists($cfgPath)) {
-  $cfg = array_replace($cfg, dockerNetworksDashboardLoadCfg($cfgPath));
-}
+$cfg = function_exists('parse_plugin_cfg') ? ((array)(parse_plugin_cfg('docker.networks') ?: [])) : [];
 
 $dashboardTileEnabled = dockerNetworksDashboardCfgBool($cfg, 'DASHBOARD_TILE_ENABLED', true);
 if (!$dashboardTileEnabled) {
+  dnLogDebug("Dashboard tile is disabled via configuration", ['dashboardTileEnabled' => $dashboardTileEnabled], 'dashboard');
   return;
 }
 
@@ -145,20 +169,20 @@ $showDefaultNetworks = dockerNetworksDashboardCfgBool($cfg, 'SHOW_DEFAULT_NETWOR
 
 $menuLocation = strtolower(trim((string)($cfg['MENU_LOCATION'] ?? 'docker')));
 
-$openPath = '/Docker/DockerNetworks';
+$openPath = '/Docker';
 if ($menuLocation === 'tools') {
   $openPath = '/Tools/DockerNetworks';
 } elseif ($menuLocation === 'tab') {
   $openPath = '/Networks';
 }
-
-$jsCardName = json_encode($cardName);
+dnLogDebug("Dashboard menu location set", ['menuLocation' => $menuLocation, 'openPath' => $openPath], 'dashboard');
 
 $networkRows = '';
 $networkSummaries = dockerNetworksDashboardNetworkSummaries($showSystemNetworks, $showDefaultNetworks);
 $totalNetworks = count($networkSummaries);
 $activeNetworks = 0;
 if ($networkSummaries === []) {
+  dnLogDebug("No networks found to display on the dashboard", [], 'dashboard');
   $networkRows = "  <tr class='dn-dash-empty'>\n    <td>\n      <div class='dn-dash-empty-text'>No networks found</div>\n    </td>\n  </tr>\n";
 } else {
   foreach ($networkSummaries as $summary) {
@@ -170,26 +194,27 @@ if ($networkSummaries === []) {
     $label = $connections === 1 ? 'connection' : 'connections';
     $networkRows .= "  <tr class='dn-dash-network-row' data-connections='{$connections}'>\n    <td>\n      <div class='dn-dash-network-row-inner'>\n        <div class='dn-dash-network-name' title='{$name}'>{$name}</div>\n        <div class='dn-dash-network-count'>{$connections} {$label}</div>\n      </div>\n    </td>\n  </tr>\n";
   }
+  dnLogDebug("Network summaries processed for dashboard", ['totalNetworks' => $totalNetworks, 'activeNetworks' => $activeNetworks], 'dashboard');
 }
 
-$mytiles[$cardName]['column1'] = <<<EOT
+$mytiles['docker-networks']['column1'] = <<<EOT
 <tbody title="Docker Networks">
   <tr>
     <td>
-      <div class='tile-header' id='{$cardName}-dashboard-card'>
+      <div class='tile-header' id='docker-networks-dashboard-card'>
         <div class='tile-header-left'>
           <i class='fa fa-sitemap fa-2x'></i>
           <div class='section'>
-            <h3 class='tile-header-main' id='{$cardName}-dashboard-title'>Docker Networks</h3>
+            <h3 class='tile-header-main' id='docker-networks-dashboard-title'>Docker Networks</h3>
             <span class='apps button'>
-              <input type='checkbox' id='{$cardName}-active-only-toggle'>
+              <input type='checkbox' id='docker-networks-active-only-toggle'>
             </span>
             <br>
           </div>
         </div>
         <div class='tile-header-right-controls'>
-          <a id='{$cardName}-settings-button' href='/Settings/docker.networks.settings' title='_(Settings)_'><i class='fa fa-fw fa-cog control'></i></a>
-          <a id='{$cardName}-open-button' href='{$openPath}' title='_(Open)_'><i class='fa fa-fw fa-external-link control'></i></a>
+          <a id='docker-networks-settings-button' href='/Settings/docker.networks.settings' title='_(Settings)_'><i class='fa fa-fw fa-cog control'></i></a>
+          <a id='docker-networks-open-button' href='{$openPath}' title='_(Open)_'><i class='fa fa-fw fa-external-link control'></i></a>
         </div>
       </div>
     </td>
@@ -205,11 +230,11 @@ $mytiles[$cardName]['column1'] = <<<EOT
   </tr>
 {$networkRows}</tbody>
 <style>
-  #{$cardName}-dashboard-card .section {
+  #docker-networks-dashboard-card .section {
     min-width: 0;
   }
 
-  #{$cardName}-dashboard-title {
+  #docker-networks-dashboard-title {
     white-space: nowrap;
   }
 
@@ -264,42 +289,4 @@ $mytiles[$cardName]['column1'] = <<<EOT
     padding: 7px 9px;
   }
 </style>
-<script>
-  (function () {
-    var cardId = {$jsCardName};
-    var toggle = document.getElementById(cardId + '-active-only-toggle');
-    if (!toggle) {
-      return;
-    }
-
-    function applyFilter() {
-      var activeOnly = !!toggle.checked;
-
-      var rows = document.querySelectorAll('tr.dn-dash-network-row');
-      rows.forEach(function (row) {
-        var count = parseInt(row.getAttribute('data-connections') || '0', 10);
-        row.style.display = (!activeOnly || count > 0) ? '' : 'none';
-      });
-    }
-
-    if (window.jQuery) {
-      var \$toggle = window.jQuery('#' + cardId + '-active-only-toggle');
-      if (typeof \$toggle.switchButton === 'function' && !\$toggle.data('switchbutton-initialized')) {
-        \$toggle.switchButton({
-          labels_placement: 'right',
-          off_label: 'All Networks',
-          on_label: 'Active only',
-          checked: false
-        });
-        \$toggle.data('switchbutton-initialized', true);
-      }
-
-      \$toggle.off('change.dndash').on('change.dndash', applyFilter);
-    } else {
-      toggle.addEventListener('change', applyFilter);
-    }
-
-    applyFilter();
-  }());
-</script>
 EOT;

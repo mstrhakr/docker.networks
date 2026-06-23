@@ -1,4 +1,7 @@
 Cond="version_compare(parse_ini_file('/etc/unraid-version')['version'],'6.11.9','>')"
 Menu="Dashboard:0"
 ---
+
 <?php include '/usr/local/emhttp/plugins/docker.networks/include/DockerNetworkDashboard.php'; ?>
+<script src="<?php autov('/plugins/docker.networks/javascript/logger.js'); ?>"></script>
+<script src="<?php autov('/plugins/docker.networks/javascript/dockerNetworksDashboard.js'); ?>"></script>
