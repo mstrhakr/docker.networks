@@ -6,6 +6,20 @@
             return;
         }
 
+        // --- cookie helpers / state ---
+        var cookie = {};
+        var hasJqCookie = window.jQuery && typeof window.jQuery.cookie === 'function';
+        if (hasJqCookie) {
+            var raw = window.jQuery.cookie('unraid_settings');
+            if (raw) {
+                try { cookie = JSON.parse(raw) || {}; } catch (e) { cookie = {}; }
+            }
+        }
+
+        // Apply cookie value to the checkbox before creating the switchButton
+        var cookieActiveOnly = cookie.dn_active_only === true || cookie.dn_active_only === 'true';
+        toggle.checked = cookieActiveOnly;
+
         function applyFilter() {
             var activeOnly = !!toggle.checked;
 
@@ -18,18 +32,37 @@
 
         if (window.jQuery) {
             var $toggle = window.jQuery('#docker-networks-active-only-toggle');
+
             if (typeof $toggle.switchButton === 'function' && !$toggle.data('switchbutton-initialized')) {
                 $toggle.switchButton({
                     labels_placement: 'right',
                     off_label: 'All Networks',
                     on_label: 'Active only',
-                    checked: false
+                    checked: toggle.checked
                 });
                 $toggle.data('switchbutton-initialized', true);
                 dnLogDebug('Initialized switchButton for active-only toggle', { cardId: 'docker-networks-active-only-toggle', toggle: $toggle }, 'dashboard');
             }
 
-            $toggle.off('change.dndash').on('change.dndash', applyFilter);
+            $toggle.off('change.dndash').on('change.dndash', function () {
+                // persist
+                var cur = {};
+                if (typeof window.jQuery.cookie === 'function') {
+                    var raw = window.jQuery.cookie('unraid_settings');
+                    if (raw) {
+                        try { cur = JSON.parse(raw) || {}; } catch (e) { cur = {}; }
+                    }
+                    if (toggle.checked) {
+                        cur.dn_active_only = true;
+                    } else {
+                        delete cur.dn_active_only;
+                    }
+                    window.jQuery.cookie('unraid_settings', JSON.stringify(cur), { expires: 3650, path: '/' });
+                }
+
+                applyFilter();
+            });
+
             dnLogDebug('Attached change event handler for active-only toggle', { cardId: 'docker-networks-active-only-toggle', toggle: $toggle }, 'dashboard');
         } else {
             toggle.removeEventListener('change', applyFilter);
