@@ -64,10 +64,16 @@ if [[ "$QUICK" == true ]]; then
   QUICK_PREFIX="source/docker.networks/"
   QUICK_REMOTE_ROOT="/usr/local/emhttp/plugins/docker.networks"
 
-  mapfile -t UNSTAGED < <(git -C "$REPO_ROOT" diff --name-only --diff-filter=ACMR -- "$QUICK_PREFIX")
-  mapfile -t STAGED < <(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR -- "$QUICK_PREFIX")
-  mapfile -t CHANGED_FILES < <(printf '%s\n' "${UNSTAGED[@]}" "${STAGED[@]}" | sort -u)
+  # staged: what’s in the index vs HEAD
+  mapfile -t STAGED < <(git -C "$REPO_ROOT" diff --name-only --diff-filter=ACMR --cached -- "$QUICK_PREFIX")
 
+  # unstaged: what’s in working tree vs index
+  mapfile -t UNSTAGED < <(git -C "$REPO_ROOT" diff --name-only --diff-filter=ACMR -- "$QUICK_PREFIX")
+  # (keep tracked-only behavior; if you want to include untracked, you’d need a different command)
+
+  # union
+  mapfile -t CHANGED_FILES < <(printf '%s\n' "${UNSTAGED[@]}" "${STAGED[@]}" | sort -u)
+  
   [[ ${#CHANGED_FILES[@]} -eq 0 ]] && echo "No tracked changes under source/docker.networks" && exit 0
 
   for host in "${REMOTE_HOSTS[@]}"; do
