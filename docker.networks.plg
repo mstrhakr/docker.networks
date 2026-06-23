@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.06.19.1610">
+<!ENTITY version     "2026.06.22.2333">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "11f91931bcfa7ff3c46ca4b35290a7a3">
-<!ENTITY pkgBUILD    "2010">
+<!ENTITY packageMD5  "1ac185f50051cae558ffb868e4cadde3">
+<!ENTITY pkgBUILD    "0333">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,10 +32,23 @@
 >
 
 <CHANGES>
-###2026.06.19.1610
-- Features (ui): enhance modal and table responsiveness with mobile-first layout adjustments
-- Update installation instructions in README.md
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.14.1156...v2026.06.19.1610)
+###2026.06.22.2333
+- Features (logs): add log wrappers
+- Features (transfer): update button labels for clarity in transfer controls
+- Features (actions): duplicate buttons at top and bottom of network list
+- Features (manage): merge edit and manage modals into one
+- Features (settings): add options to show/hide system and default networks
+- Features (dashboard): add dashboard tile toggle
+- Bug Fixes (css): adjust style shift breakpoints and widen manage modal
+- Bug Fixes (dashboard): add persistence to active toggle via cookie
+- Bug Fixes (dashboard): add logging, extract and fix js for toggle, fix config loading, fix array assumption
+- Bug Fixes (dev): explicitly compute staged vs unstaged
+- Bug Fixes: remove throw when docker networks is in the background for a long time
+- Bug Fixes (settings): update css href
+- Bug Fixes (menu): update menu order and add missing tag and code attributes
+- Bug Fixes (styles): various portrait and landscape mobile css fixes
+- Bug Fixes (manage): make modal header sticky and adjust title font size on mobile
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.19.1610...v2026.06.22.2333)
 </CHANGES>
 
 <FILE Run="/bin/bash">
