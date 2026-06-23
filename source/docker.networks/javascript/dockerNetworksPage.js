@@ -676,8 +676,6 @@
       return data;
     }).catch(function (err) {
       logClient('Load networks failed', { error: String(err) }, 'error', 'api');
-      showActionResult('Load Failed', '<div class="swal-text-block">' + escapeHtml(String(err)) + '</div>', false);
-      throw err;
     }).finally(function () {
       if (settings.showLoading) {
         $('#loading').hide();
