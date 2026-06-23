@@ -102,3 +102,20 @@ if (!function_exists('dockerNetworksLogger')) {
         exec("logger -t 'docker.networks' -p " . escapeshellarg($priority) . ' ' . escapeshellarg($formatted));
     }
 }
+
+function dnLogError(string $message, $data = null, string $category = ''): void
+{
+    dockerNetworksLogger($message, $data, 'daemon', 'error', $category);
+}
+function dnLogWarn(string $message, $data = null, string $category = ''): void
+{
+    dockerNetworksLogger($message, $data, 'daemon', 'warning', $category);
+}
+function dnLogInfo(string $message, $data = null, string $category = ''): void
+{
+    dockerNetworksLogger($message, $data, 'daemon', 'info', $category);
+}
+function dnLogDebug(string $message, $data = null, string $category = ''): void
+{
+    dockerNetworksLogger($message, $data, 'daemon', 'debug', $category);
+}

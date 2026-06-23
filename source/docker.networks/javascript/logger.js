@@ -49,4 +49,20 @@
       // Ignore console failures.
     }
   };
+
+  window.dnLogError = function (msg, data, category) {
+    window.dockerNetworksLogger(msg, data, 'user', 'error', category);
+  };
+
+  window.dnLogWarning = function (msg, data, category) {
+    window.dockerNetworksLogger(msg, data, 'user', 'warn', category);
+  };
+
+  window.dnLogInfo = function (msg, data, category) {
+    window.dockerNetworksLogger(msg, data, 'user', 'info', category);
+  };
+
+  window.dnLogDebug = function (msg, data, category) {
+    window.dockerNetworksLogger(msg, data, 'user', 'debug', category);
+  };
 })();
