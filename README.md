@@ -1,5 +1,11 @@
 # Docker Networks
 
+![GitHub Repo stars](https://img.shields.io/github/stars/mstrhakr/docker.networks)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/mstrhakr/docker.networks/release.yml)
+![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/mstrhakr/docker.networks/latest/total)
+![GitHub Closed Issues](https://img.shields.io/github/issues-closed/mstrhakr/docker.networks)
+![GitHub Closed Pull Requests](https://img.shields.io/github/issues-pr-closed/mstrhakr/docker.networks)
+
 Manage Docker networks directly from the Unraid web UI.
 
 ## Install
