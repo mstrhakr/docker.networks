@@ -169,10 +169,12 @@
   opacity: 1;
 }
 
-#docker-networks-page .modal-content.modal-wide { max-width: min(900px, calc(100vw - 20px)); }
+#docker-networks-page .modal-content.modal-wide {
+  max-width: min(1280px, calc(100vw - 20px));
+}
 
 #docker-networks-page .manage-modal-content {
-  width: min(1100px, calc(100vw - 20px));
+  width: min(1200px, calc(100vw - 20px));
   max-width: calc(100vw - 20px);
 }
 
@@ -609,7 +611,7 @@
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 900px) {
   #docker-networks-page .docker-networks-actions {
     display: flex;
     gap: 10px;
@@ -687,7 +689,7 @@
   }
 
   #docker-networks-page .modal-content {
-    width: min(80%, calc(100vw - 24px));
+    width: min(1280px, calc(100vw - 20px));
     max-width: 600px;
     max-height: calc(100vh - 36px);
     padding: 20px;
@@ -727,7 +729,7 @@
   }
 }
 
-@media (min-width: 641px) and (max-width: 1279px) {
+@media (min-width: 641px) and (max-width: 899px) {
   #docker-networks-page .docker-networks-actions {
     display: flex;
     gap: 10px;
