@@ -297,8 +297,68 @@ function dockerNetworksExecCfgBool(array $cfg, string $key, bool $default = fals
 
 function dockerNetworksIsTemplatePersistenceEnabled(): bool
 {
-    $cfg = dockerNetworksLoadPluginCfg();
-    return dockerNetworksExecCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
+    return dockerNetworksSupportsExtraNetworks();
+}
+
+function dockerNetworksSupportsExtraNetworks(?string $version = null): bool
+{
+    if ($version === null) {
+        $release = @parse_ini_file('/etc/unraid-version');
+        $version = is_array($release) ? (string) ($release['version'] ?? '') : '';
+    }
+
+    return preg_match('/^\d+\.\d+(?:\.\d+)?(?:[-.][a-zA-Z0-9.]+)?$/D', $version) === 1
+        && version_compare($version, '7.4.0-beta.1.2', '>=');
+}
+
+function dockerNetworksExtraNetworks(SimpleXMLElement $xml): array
+{
+    return array_values(array_unique(preg_split('/[\s,]+/', trim((string) ($xml->ExtraNetworks ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: []));
+}
+
+function dockerNetworksUpdateExtraNetworks(SimpleXMLElement $xml, string $networkName, bool $attach): void
+{
+    $networks = dockerNetworksExtraNetworks($xml);
+    $networks = array_values(array_filter($networks, static function (string $name) use ($networkName): bool {
+        return $name !== $networkName;
+    }));
+    if ($attach && $networkName !== trim((string) ($xml->Network ?? ''))) {
+        $networks[] = $networkName;
+    }
+    $xml->ExtraNetworks = implode(',', $networks);
+}
+
+function dockerNetworksHasLegacyNetworkCommands(string $postArgs): bool
+{
+    return preg_match('/(?:^|[\s;&|])(?:\/usr\/bin\/)?docker\s+network\s+connect\b/i', $postArgs) === 1;
+}
+
+function dockerNetworksLegacyNetworkContainers(string $dir = '/boot/config/plugins/dockerMan/templates-user'): array
+{
+    $containers = [];
+    foreach (glob($dir . '/my-*.xml') ?: [] as $path) {
+        $xml = @simplexml_load_file($path);
+        if ($xml !== false && dockerNetworksHasLegacyNetworkCommands((string) ($xml->PostArgs ?? ''))) {
+            $containers[] = (string) ($xml->Name ?? basename($path, '.xml'));
+        }
+    }
+    return array_values(array_unique($containers));
+}
+
+function dockerNetworksAttachmentTemplateError(string $containerName, string $networkName): string
+{
+    $path = dockerNetworksUserTemplatePath($containerName);
+    $xml = $path !== '' ? @simplexml_load_file($path) : false;
+    if ($xml === false || !is_writable($path)) {
+        return 'A readable, writable Unraid user template is required. No attachment was changed.';
+    }
+    if (dockerNetworksHasLegacyNetworkCommands((string) ($xml->PostArgs ?? ''))) {
+        return 'Network reconnect commands were detected in this container\'s Post Arguments. They may conflict with native Additional Networks. Review them in the Unraid container editor before changing attachments. Docker Networks has not changed Post Arguments.';
+    }
+    if (trim((string) ($xml->Network ?? '')) === $networkName) {
+        return 'Change the primary network in the Unraid container editor. Docker Networks manages additional attachments only.';
+    }
+    return '';
 }
 
 function dockerNetworksMetaPath(): string
@@ -588,12 +648,11 @@ function dockerNetworksGetContainerNetworkCount(string $containerId): int
 }
 
 /**
- * Build pending network-attach counts from template PostArgs commands.
- * Returns map: lowercase network name => unique container count.
+ * Build pending network-attach counts from native template attachments.
+ * Returns map: network name => unique container count.
  */
-function dockerNetworksBuildScheduledNetworkCounts(): array
+function dockerNetworksBuildScheduledNetworkCounts(array $attachedNamesByNetwork = [], string $dir = '/boot/config/plugins/dockerMan/templates-user'): array
 {
-    $dir = '/boot/config/plugins/dockerMan/templates-user';
     if (!is_dir($dir)) {
         return [];
     }
@@ -606,25 +665,14 @@ function dockerNetworksBuildScheduledNetworkCounts(): array
             continue;
         }
 
-        $postArgs = isset($xml->PostArgs) ? trim((string)$xml->PostArgs) : '';
-        if ($postArgs === '') {
-            continue;
-        }
-
-        // Supports both managed and legacy command forms, with optional --ip and quoted args.
-        $pattern = "/(?:^|&&|\\s)(?:\\/usr\\/bin\\/)?docker\\s+network\\s+connect(?:\\s+--ip\\s+[^\\s]+)?\\s+(?:'|\")?([^\\s'\"&]+)(?:'|\")?\\s+(?:'|\")?([^\\s'\"&]+)(?:'|\")?/i";
-        if (!preg_match_all($pattern, $postArgs, $matches, PREG_SET_ORDER)) {
-            continue;
-        }
-
-        foreach ($matches as $match) {
-            $networkName = isset($match[1]) ? trim((string)$match[1]) : '';
-            $containerName = isset($match[2]) ? trim((string)$match[2]) : '';
-            if ($networkName === '' || $containerName === '') {
+        $containerName = trim((string) ($xml->Name ?? ''));
+        foreach (dockerNetworksExtraNetworks($xml) as $networkName) {
+            if ($containerName === '' || $networkName === trim((string) ($xml->Network ?? ''))
+                || in_array($containerName, $attachedNamesByNetwork[$networkName] ?? [], true)) {
                 continue;
             }
 
-            $networkKey = strtolower($networkName);
+            $networkKey = $networkName;
             if (!isset($networkToContainers[$networkKey])) {
                 $networkToContainers[$networkKey] = [];
             }
@@ -652,7 +700,7 @@ function dockerNetworksHandleListNetworks(): void
     }
 
     $networks = [];
-    $scheduledCounts = dockerNetworksBuildScheduledNetworkCounts();
+    $attachedNamesByNetwork = [];
     $meta = dockerNetworksLoadMeta();
     $lines = array_filter(explode("\n", (string) $result['output']));
     foreach ($lines as $line) {
@@ -672,9 +720,17 @@ function dockerNetworksHandleListNetworks(): void
         $entry['IsDefault'] = $protection['isDefault'];
         $entry['IsProtected'] = $protection['isProtected'];
         $entry['ProtectionLabel'] = $protection['label'];
-        $entry['PendingCount'] = (int)($scheduledCounts[strtolower((string)($entry['Name'] ?? ''))] ?? 0);
+        $attachedNamesByNetwork[(string) $entry['Name']] = array_column($entry['Containers'] ?? [], 'Name');
         $networks[] = $entry;
     }
+
+    $scheduledCounts = dockerNetworksSupportsExtraNetworks()
+        ? dockerNetworksBuildScheduledNetworkCounts($attachedNamesByNetwork)
+        : [];
+    foreach ($networks as &$entry) {
+        $entry['PendingCount'] = $scheduledCounts[(string) $entry['Name']] ?? 0;
+    }
+    unset($entry);
 
     usort($networks, static function (array $a, array $b): int {
         $aProtected = !empty($a['IsProtected']);
@@ -819,20 +875,7 @@ function dockerNetworksCheckContainerScheduledNetwork(string $containerName, str
         return false;
     }
 
-    $postArgs = isset($xml->PostArgs) ? trim((string) $xml->PostArgs) : '';
-    if ($postArgs === '') {
-        return false;
-    }
-
-    // Check for both managed format (&& docker network connect) and legacy format
-    $managedCmd = dockerNetworksBuildTemplateConnectCmd($networkName, $containerName);
-    $legacyCmd = dockerNetworksBuildLegacyTemplateConnectCmd($networkName, $containerName);
-
-    $normalizedPostArgs = strtolower(preg_replace('/\s+/', ' ', $postArgs) ?: '');
-    $normalizedManaged = strtolower(preg_replace('/\s+/', ' ', $managedCmd) ?: '');
-    $normalizedLegacy = strtolower(preg_replace('/\s+/', ' ', $legacyCmd) ?: '');
-
-    return strpos($normalizedPostArgs, $normalizedManaged) !== false || strpos($normalizedPostArgs, $normalizedLegacy) !== false;
+    return in_array($networkName, dockerNetworksExtraNetworks($xml), true);
 }
 
 function dockerNetworksHandleCheckScheduledNetworks(array $request): void
@@ -881,6 +924,11 @@ function dockerNetworksHandleCheckScheduledNetworks(array $request): void
 
 function dockerNetworksHandleConnectContainer(array $request): void
 {
+    if (!dockerNetworksSupportsExtraNetworks()) {
+        dockerNetworksRespond(['success' => false, 'error' => 'Container attachment changes require Unraid 7.4 or newer (7.4 prereleases require beta.1.2 or newer).'], 403);
+        return;
+    }
+
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
     $containerId = isset($request['containerId']) ? trim((string) $request['containerId']) : '';
     $containerNameHint = isset($request['containerName']) ? trim((string) $request['containerName']) : '';
@@ -911,6 +959,12 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
+    $templateError = dockerNetworksAttachmentTemplateError($containerName, $networkName);
+    if ($templateError !== '') {
+        dockerNetworksRespond(['success' => false, 'error' => $templateError], 409);
+        return;
+    }
+
     // Trust docker inspect state over client-provided state when available.
     $resolvedState = dockerNetworksResolveContainerState($containerRef);
     if ($resolvedState !== '') {
@@ -919,19 +973,9 @@ function dockerNetworksHandleConnectContainer(array $request): void
 
     // Only "running" should use direct docker network connect.
     $isContainerRunning = ($containerState === 'running');
-    $isPersistenceEnabled = dockerNetworksIsTemplatePersistenceEnabled();
-
     if (!$isContainerRunning) {
-        // Container is stopped
-        if (!$isPersistenceEnabled) {
-            dockerNetworksLogger('Connect failed: container stopped, persistence disabled', ['containerId' => $containerId, 'containerRef' => $containerRef, 'state' => $containerState], 'user', 'error', 'exec');
-            dockerNetworksSseEmitQueuedEvent($requestId, 'containerUpdate', [
-                'type' => 'connect',
-                'success' => false,
-                'item' => ['id' => $containerId, 'name' => $containerNameHint !== '' ? $containerNameHint : $containerId],
-                'message' => 'Container must be running to connect directly. Enable template XML persistence in Docker Networks settings to connect stopped containers.',
-            ]);
-            dockerNetworksRespond(['success' => false, 'error' => 'Container must be running to connect directly. Enable template XML persistence in Docker Networks settings to connect stopped containers.'], 400);
+        if ($ipAddress !== '') {
+            dockerNetworksRespond(['success' => false, 'error' => 'Native Additional Networks cannot persist a static IP for a stopped container.'], 400);
             return;
         }
 
@@ -952,9 +996,9 @@ function dockerNetworksHandleConnectContainer(array $request): void
             'type' => 'connect',
             'success' => true,
             'item' => ['id' => $containerId, 'name' => $containerName, 'scheduledOnly' => true, 'ipAddress' => 'pending'],
-            'message' => 'Template updated—network will connect on startup',
+            'message' => 'Additional Networks updated; connection pending container recreation',
         ]);
-        dockerNetworksRespond(['success' => true, 'message' => 'Template updated—network will connect on startup', 'ipAddress' => 'pending', 'persisted' => true, 'warning' => 'This stopped container will join the network when it starts.']);
+        dockerNetworksRespond(['success' => true, 'message' => 'Additional Networks updated; connection pending container recreation', 'ipAddress' => 'pending', 'persisted' => true, 'warning' => 'Apply the container template in Unraid to recreate the container and connect this network. A plain start does not apply Additional Networks.']);
         return;
     }
 
@@ -997,7 +1041,9 @@ function dockerNetworksHandleConnectContainer(array $request): void
     }
     $cmd .= ' ' . escapeshellarg($networkId) . ' ' . escapeshellarg($containerRef);
 
-    $result = dockerNetworksRun($cmd);
+    $result = $ipAddress === '' && dockerNetworksIsContainerConnectedToNetwork($containerRef, $networkId)
+        ? ['exitCode' => 0, 'output' => '']
+        : dockerNetworksRun($cmd);
 
     if ($result['exitCode'] !== 0) {
         $daemonError = trim((string)($result['output'] ?? ''));
@@ -1020,12 +1066,10 @@ function dockerNetworksHandleConnectContainer(array $request): void
         return;
     }
 
-    $persist = dockerNetworksIsTemplatePersistenceEnabled()
-        ? dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, true)
-        : [
-            'persisted' => false,
-            'warning' => 'Runtime network change applied. Template XML persistence is disabled in Docker Networks settings.',
-        ];
+    $persist = dockerNetworksPersistNetworkAttachInTemplate($containerName, $networkName, true);
+    if ($ipAddress !== '') {
+        $persist['warning'] = trim($persist['warning'] . ' The requested static IP applies at runtime only; native Additional Networks persists network names, not IP addresses.');
+    }
     
     $assignedIp = $ipAddress;
     if ($assignedIp === '') {
@@ -1058,6 +1102,11 @@ function dockerNetworksHandleConnectContainer(array $request): void
 
 function dockerNetworksHandleDisconnectContainer(array $request): void
 {
+    if (!dockerNetworksSupportsExtraNetworks()) {
+        dockerNetworksRespond(['success' => false, 'error' => 'Container attachment changes require Unraid 7.4 or newer (7.4 prereleases require beta.1.2 or newer).'], 403);
+        return;
+    }
+
     $networkId = isset($request['networkId']) ? trim((string) $request['networkId']) : '';
     $containerId = isset($request['containerId']) ? trim((string) $request['containerId']) : '';
     $containerNameHint = isset($request['containerName']) ? trim((string) $request['containerName']) : '';
@@ -1083,6 +1132,12 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
     $networkName = dockerNetworksResolveNetworkName($networkId);
     if ($networkName === '') {
         dockerNetworksRespond(['success' => false, 'error' => 'Network not found'], 404);
+        return;
+    }
+
+    $templateError = dockerNetworksAttachmentTemplateError($containerName, $networkName);
+    if ($templateError !== '') {
+        dockerNetworksRespond(['success' => false, 'error' => $templateError], 409);
         return;
     }
 
@@ -1126,7 +1181,7 @@ function dockerNetworksHandleDisconnectContainer(array $request): void
     if (!$isRuntimeConnected && $hasScheduledTemplateAttach) {
         $warning = $persist['warning'] !== ''
             ? $persist['warning']
-            : 'Scheduled network connection removed from template. The container will not auto-connect on startup.';
+            : 'Additional network removed from template.';
     }
 
     if (!$isRuntimeConnected && !$hasScheduledTemplateAttach) {
@@ -1260,44 +1315,17 @@ function dockerNetworksUserTemplatePath(string $containerName): string
     return $match;
 }
 
-function dockerNetworksBuildTemplateConnectCmd(string $networkName, string $containerName): string
-{
-    return '&& docker network connect ' . $networkName . ' ' . $containerName;
-}
-
-function dockerNetworksBuildLegacyTemplateConnectCmd(string $networkName, string $containerName): string
-{
-    return '/usr/bin/docker network connect ' . escapeshellarg($networkName) . ' ' . escapeshellarg($containerName) . ' >/dev/null 2>&1 || true';
-}
-
-function dockerNetworksAppendPostArgsCommand(string $postArgs, string $command): string
-{
-    $trimmedPostArgs = trim($postArgs);
-    if ($trimmedPostArgs === '') {
-        return $command;
-    }
-
-    return rtrim($trimmedPostArgs) . ' ' . $command;
-}
-
-function dockerNetworksRemovePostArgsCommand(string $postArgs, string $command): string
-{
-    $pattern = '/\s*' . preg_quote($command, '/') . '(?=\s|$)/i';
-    $updated = preg_replace($pattern, '', $postArgs);
-    if (!is_string($updated)) {
-        return trim($postArgs);
-    }
-
-    return trim(preg_replace('/\s+/', ' ', $updated) ?: '');
-}
-
 function dockerNetworksPersistNetworkAttachInTemplate(string $containerName, string $networkName, bool $attach): array
 {
+    if (!dockerNetworksSupportsExtraNetworks()) {
+        return ['persisted' => false, 'warning' => 'Container attachment changes require Unraid 7.4 or newer (7.4 prereleases require beta.1.2 or newer). No template was changed.'];
+    }
+
     $templatePath = dockerNetworksUserTemplatePath($containerName);
     if ($templatePath === '') {
         return [
             'persisted' => false,
-            'warning' => 'Runtime network change applied, but no user template was found to persist this after Docker/server restart.',
+            'warning' => 'No user template was found to save Additional Networks for container recreation.',
         ];
     }
 
@@ -1309,32 +1337,19 @@ function dockerNetworksPersistNetworkAttachInTemplate(string $containerName, str
         ];
     }
 
-    $currentPostArgs = isset($xml->PostArgs) ? trim((string) $xml->PostArgs) : '';
-    $managedCmd = dockerNetworksBuildTemplateConnectCmd($networkName, $containerName);
-    $legacyCmd = dockerNetworksBuildLegacyTemplateConnectCmd($networkName, $containerName);
-
-    $normalizedCurrent = strtolower(preg_replace('/\s+/', ' ', $currentPostArgs) ?: '');
-    $normalizedManaged = strtolower(preg_replace('/\s+/', ' ', $managedCmd) ?: '');
-    $normalizedLegacy = strtolower(preg_replace('/\s+/', ' ', $legacyCmd) ?: '');
-
-    $newPostArgs = $currentPostArgs;
-    if ($attach) {
-        if (strpos($normalizedCurrent, $normalizedManaged) === false && strpos($normalizedCurrent, $normalizedLegacy) === false) {
-            $newPostArgs = dockerNetworksAppendPostArgsCommand($currentPostArgs, $managedCmd);
-        }
-    } else {
-        $newPostArgs = dockerNetworksRemovePostArgsCommand($currentPostArgs, $managedCmd);
-        $newPostArgs = dockerNetworksRemovePostArgsCommand($newPostArgs, $legacyCmd);
+    if (dockerNetworksHasLegacyNetworkCommands((string) ($xml->PostArgs ?? ''))) {
+        return ['persisted' => false, 'warning' => 'Network commands were detected in Post Arguments. No template was changed.'];
     }
 
-    if ($newPostArgs === $currentPostArgs) {
+    $currentNetworks = (string) ($xml->ExtraNetworks ?? '');
+    dockerNetworksUpdateExtraNetworks($xml, $networkName, $attach);
+
+    if ((string) $xml->ExtraNetworks === $currentNetworks) {
         return [
             'persisted' => true,
             'warning' => '',
         ];
     }
-
-    $xml->PostArgs = $newPostArgs;
 
     $dom = new DOMDocument('1.0');
     $dom->preserveWhiteSpace = false;
@@ -1346,7 +1361,16 @@ function dockerNetworksPersistNetworkAttachInTemplate(string $containerName, str
         ];
     }
 
-    if (file_put_contents($templatePath, $dom->saveXML()) === false) {
+    $temporaryPath = tempnam(dirname($templatePath), '.docker-networks-');
+    $savedXml = $dom->saveXML();
+    $written = $temporaryPath !== false && $savedXml !== false
+        && file_put_contents($temporaryPath, $savedXml, LOCK_EX) !== false
+        && chmod($temporaryPath, fileperms($templatePath) & 0777)
+        && rename($temporaryPath, $templatePath);
+    if (!$written) {
+        if ($temporaryPath !== false && is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
         return [
             'persisted' => false,
             'warning' => 'Runtime network change applied, but failed to write container template XML for persistence.',

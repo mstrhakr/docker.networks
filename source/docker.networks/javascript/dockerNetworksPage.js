@@ -28,7 +28,7 @@
   var showSystemNetworks = readWindowBool(window.dockerNetworksShowSystemNetworks, true);
   var showDefaultNetworks = readWindowBool(window.dockerNetworksShowDefaultNetworks, true);
   var userNetworksPersist = false;
-  var xmlTemplatePersist = false;
+  var attachmentsSupported = readWindowBool(window.dockerNetworksAttachmentsSupported, false);
   var dockerSettingsUrl = window.dockerNetworksSettingsUrl || '/Settings/DockerSettings';
   var pluginSettingsUrl = window.dockerNetworksPluginSettingsUrl || '/Settings/docker.networks.settings';
   var allContainers = [];
@@ -141,18 +141,32 @@
     }
 
     logClient('User networks banner shown', { userNetworksPersist: userNetworksPersist }, 'info', 'settings');
-    showBanner('#dockerUserNetworksWarning', 'Docker setting <strong>"Preserve user defined networks"</strong> is currently disabled. Connections may be lost when Docker/server restarts. <a href="' + escapeHtml(dockerSettingsUrl) + '">Open Docker Settings</a> to enable it.');
+    showBanner('#dockerUserNetworksWarning', 'Docker setting <strong>"Preserve user defined networks"</strong> is currently disabled. Custom network definitions may be removed when Docker restarts. <a href="' + escapeHtml(dockerSettingsUrl) + '">Open Docker Settings</a> to enable it.');
   }
 
   function updateTemplatePersistenceWarning() {
-    if (xmlTemplatePersist) {
-      logClient('Template persistence banner hidden', { xmlTemplatePersist: xmlTemplatePersist }, 'info', 'settings');
+    if (attachmentsSupported) {
       hideBanner('#dockerTemplatePersistenceWarning');
       return;
     }
 
-    logClient('Template persistence banner shown', { xmlTemplatePersist: xmlTemplatePersist }, 'info', 'settings');
-    showBanner('#dockerTemplatePersistenceWarning', 'Template XML persistence is <strong>disabled</strong>. Network changes apply at runtime only. Enable it explicitly in <a href="' + escapeHtml(pluginSettingsUrl) + '">Docker Networks Settings</a> if you want template edits for restart persistence.');
+    showBanner('#dockerTemplatePersistenceWarning', 'Container attachment changes are disabled. Native Additional Networks requires Unraid 7.4 or newer (7.4 prereleases require beta.1.2 or newer). Container templates have not been changed.');
+  }
+
+  function showLegacyNetworkWarning() {
+    var containers = window.dockerNetworksLegacyNetworkContainers || [];
+    if (!containers.length) {
+      return;
+    }
+    var message = 'Network reconnect commands were detected in Post Arguments for: ' + containers.join(', ') + '. These commands may be intentional, but can cause duplicate-endpoint errors or failed container updates and can conflict with native Additional Networks. Attachment changes are blocked for these containers until the commands are reviewed in the Unraid container editor. Docker Networks has not changed or removed any Post Arguments.';
+    var runtime = getSwalRuntime();
+    if (runtime && runtime.version === 2) {
+      runtime.api.fire({ title: 'Review Network Post Arguments', text: message, icon: 'warning' });
+    } else if (runtime && runtime.version === 1) {
+      runtime.api({ title: 'Review Network Post Arguments', text: escapeHtml(message), type: 'warning' });
+    } else {
+      alert(message);
+    }
   }
 
   function logClient(msg, data, level, category) {
@@ -163,7 +177,7 @@
 
   function syncBannerSettings() {
     userNetworksPersist = !!window.dockerNetworksUserNetworksPersist;
-    xmlTemplatePersist = !!window.dockerNetworksXmlTemplatePersist;
+    attachmentsSupported = readWindowBool(window.dockerNetworksAttachmentsSupported, false);
   }
 
   function escapeHtml(text) {
@@ -737,6 +751,13 @@
     $('#btnMoveAllRight').prop('disabled', disabled);
     $('#btnMoveSelectedLeft').prop('disabled', disabled);
     $('#btnMoveAllLeft').prop('disabled', disabled);
+    disableUnsupportedAttachmentControls();
+  }
+
+  function disableUnsupportedAttachmentControls() {
+    if (!attachmentsSupported) {
+      $('#btnMoveSelectedRight, #btnMoveAllRight, #btnMoveSelectedLeft, #btnMoveAllLeft, #connectContainerIpInput').prop('disabled', true).attr('title', 'Attachment changes require Unraid 7.4 or newer');
+    }
   }
 
   var manageTransferState = {
@@ -797,6 +818,7 @@
     $('#btnMoveAllLeft').prop('disabled', disabled);
     $('#availableContainersSelect').prop('disabled', disabled);
     $('#attachedContainersSelect').prop('disabled', disabled);
+    disableUnsupportedAttachmentControls();
   }
 
   function finalizeActiveBatch(reason) {
@@ -928,7 +950,7 @@
       attached.push({
         id: containerId,
         name: container.name || containerId,
-        address: 'Will connect on startup',
+        address: 'Pending container recreation',
         scheduledOnly: true
       });
       attachedKeys[containerId] = true;
@@ -1036,7 +1058,7 @@
             item: item,
             status: 'success',
             data: payload,
-            message: payload.message || ''
+            message: [payload.message, payload.warning].filter(Boolean).join(' ')
           });
         }).catch(function (error) {
           var errorText = String(error || 'Unknown error');
@@ -1141,7 +1163,7 @@
       if (!existing) {
         var isScheduledOnly = !!item.scheduledOnly;
         var resolvedAddress = isScheduledOnly
-          ? 'Will connect on startup'
+          ? 'Pending container recreation'
           : (item.ipAddress && item.ipAddress !== 'auto-assigned' ? item.ipAddress : (item.ipAddress || 'N/A'));
         manageTransferState.attached.push({
           id: item.id,
@@ -1153,7 +1175,7 @@
         // Update item mode from incoming result.
         existing.scheduledOnly = !!item.scheduledOnly;
         existing.address = existing.scheduledOnly
-          ? 'Will connect on startup'
+          ? 'Pending container recreation'
           : (item.ipAddress && item.ipAddress !== 'auto-assigned' ? item.ipAddress : (item.ipAddress || 'N/A'));
       }
     });
@@ -1248,7 +1270,7 @@
           // Fallback for environments where SSE events are unavailable
           updateTransferStateAfterConnect(result.successes.map(function (s) {
             var data = s.data || {};
-            var isScheduledOnly = data.ipAddress === 'pending' || (data.message && String(data.message).toLowerCase().indexOf('startup') !== -1);
+            var isScheduledOnly = data.ipAddress === 'pending';
             return {
               id: s.item.id,
               name: s.item.name,
@@ -1491,12 +1513,14 @@
     syncBannerSettings();
     logClient('Banner settings snapshot', {
       userNetworksPersist: userNetworksPersist,
-      xmlTemplatePersist: xmlTemplatePersist,
+      attachmentsSupported: attachmentsSupported,
       dockerSettingsUrl: dockerSettingsUrl,
       pluginSettingsUrl: pluginSettingsUrl
     }, 'info', 'settings');
     updateUserNetworksWarning();
     updateTemplatePersistenceWarning();
+    disableUnsupportedAttachmentControls();
+    showLegacyNetworkWarning();
 
     $('#docker-networks-page').on('click', '.dn-page-action', function () {
       var action = $(this).data('action');

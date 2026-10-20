@@ -38,6 +38,12 @@ https://raw.githubusercontent.com/mstrhakr/docker.networks/main/docker.networks.
 
 > Default/system networks (for example `bridge`, `host`, `none`, and parent-interface system networks like `bond0`/`eth0`) are protected and cannot be deleted.
 
+Container attachment changes require Unraid 7.4 or newer (7.4 prereleases require beta.1.2 or newer). Attachments use Unraid's native Additional Networks template field; earlier versions retain network inspection, creation, and metadata editing only. Change primary networks in Unraid's container editor.
+
+Post Arguments are never added, removed, or migrated. If network reconnect commands are detected, a warning identifies affected containers and attachment changes are blocked for those containers to avoid conflicts. Review those commands in Unraid's container editor; they may be intentional, so do not indiscriminately clear Post Arguments.
+
+For stopped containers, template-only attachments remain pending until the container is recreated by applying its template. A plain start does not apply them. Additional Networks stores network names, not static IP addresses or aliases.
+
 ## Troubleshooting
 
 - If the UI looks stale after an update, do a hard refresh: **Ctrl+Shift+R**.

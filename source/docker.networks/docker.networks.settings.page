@@ -41,7 +41,6 @@ if (!in_array($currentLocation, $validLocations, true)) {
 $currentDashboardTileEnabled = dockerNetworksSettingsCfgBool($cfg, 'DASHBOARD_TILE_ENABLED', true);
 $currentShowSystemNetworks = dockerNetworksSettingsCfgBool($cfg, 'SHOW_SYSTEM_NETWORKS', true);
 $currentShowDefaultNetworks = dockerNetworksSettingsCfgBool($cfg, 'SHOW_DEFAULT_NETWORKS', true);
-$currentXmlTemplatePersist = dockerNetworksSettingsCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
 $currentDebugToLog = dockerNetworksSettingsCfgBool($cfg, 'DEBUG_TO_LOG', false);
 
 $statusMsg  = '';
@@ -52,7 +51,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $requestedDashboardTileEnabled = isset($_POST['DASHBOARD_TILE_ENABLED']) && (string)$_POST['DASHBOARD_TILE_ENABLED'] === '1';
   $requestedShowSystemNetworks = isset($_POST['SHOW_SYSTEM_NETWORKS']) && (string)$_POST['SHOW_SYSTEM_NETWORKS'] === '1';
   $requestedShowDefaultNetworks = isset($_POST['SHOW_DEFAULT_NETWORKS']) && (string)$_POST['SHOW_DEFAULT_NETWORKS'] === '1';
-  $requestedXmlTemplatePersist = isset($_POST['XML_TEMPLATE_PERSIST']) && (string)$_POST['XML_TEMPLATE_PERSIST'] === '1';
   $requestedDebugToLog = isset($_POST['DEBUG_TO_LOG']) && (string)$_POST['DEBUG_TO_LOG'] === '1';
     if (!in_array($requested, $validLocations, true)) {
         $requested = 'Docker';
@@ -67,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $existing['DASHBOARD_TILE_ENABLED'] = $requestedDashboardTileEnabled ? '1' : '0';
     $existing['SHOW_SYSTEM_NETWORKS'] = $requestedShowSystemNetworks ? '1' : '0';
     $existing['SHOW_DEFAULT_NETWORKS'] = $requestedShowDefaultNetworks ? '1' : '0';
-    $existing['XML_TEMPLATE_PERSIST'] = $requestedXmlTemplatePersist ? '1' : '0';
+    unset($existing['XML_TEMPLATE_PERSIST']);
     $existing['DEBUG_TO_LOG'] = $requestedDebugToLog ? 'true' : 'false';
 
     $lines = [];
@@ -91,7 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $currentLocation = $requested;
       $currentDashboardTileEnabled = $requestedDashboardTileEnabled;
       $currentShowSystemNetworks = $requestedShowSystemNetworks;
-      $currentXmlTemplatePersist = $requestedXmlTemplatePersist;
       $currentDebugToLog = $requestedDebugToLog;
         $statusMsg = 'Settings saved. Refresh the browser to apply the new menu placement.';
     } else {
@@ -160,20 +157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </label>
       <blockquote class="inline_help">
         Enabled by default. Disable to hide default Docker networks (bridge, host, none) in the Docker Networks page and dashboard tile.
-      </blockquote>
-    </dd>
-  </dl>
-
-  <dl>
-    <dt>_(Template XML Persistence)_:</dt>
-    <dd>
-      <label>
-        <input type="checkbox" name="XML_TEMPLATE_PERSIST" value="1" <?= $currentXmlTemplatePersist ? 'checked' : '' ?>>
-        _(Allow Docker Networks to edit container template Post Arguments for persistent network attach)_
-      </label>
-      <blockquote class="inline_help">
-        Disabled by default for safety. When enabled, network connect/disconnect actions can update
-        <code>/boot/config/plugins/dockerMan/templates-user/my-*.xml</code> so additional network attachments persist after Docker/server restart.
       </blockquote>
     </dd>
   </dl>

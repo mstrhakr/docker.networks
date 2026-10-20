@@ -40,7 +40,10 @@ if [[ "$RUN_PHP_LINT" == true ]]; then
   echo "Running PHP syntax checks..."
   php -l source/docker.networks/include/Exec.php
   php -l source/docker.networks/include/ExecFunctions.php
+  php -l source/docker.networks/include/DockerNetworksPage.php
+  php -l source/docker.networks/docker.networks.settings.page
   echo "PHP syntax checks passed."
+  php tests/template-persistence.php
 fi
 
 if [[ "$RUN_SHELLCHECK" == true ]]; then

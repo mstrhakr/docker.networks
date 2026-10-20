@@ -1,6 +1,6 @@
 <?php
 $docroot = $docroot ?? ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
-require_once __DIR__ . '/Logger.php';
+require_once __DIR__ . '/ExecFunctions.php';
 
 function dockerNetworksPageNormalizeCfgValue(string $value): string
 {
@@ -38,7 +38,8 @@ if ($refreshInterval <= 0) {
 }
 $showSystemNetworks = dockerNetworksPageCfgBool($cfg, 'SHOW_SYSTEM_NETWORKS', true);
 $showDefaultNetworks = dockerNetworksPageCfgBool($cfg, 'SHOW_DEFAULT_NETWORKS', true);
-$xmlTemplatePersist = dockerNetworksPageCfgBool($cfg, 'XML_TEMPLATE_PERSIST', false);
+$attachmentsSupported = dockerNetworksSupportsExtraNetworks();
+$legacyNetworkContainers = dockerNetworksLegacyNetworkContainers();
 
 // Docker settings: mirror DockerClient.php — merge dynamix.docker.manager defaults with
 // the live docker.cfg so the result is identical to what Unraid itself sees.
@@ -56,7 +57,6 @@ if (function_exists('dockerNetworksLogger')) {
     'pluginCfgPath' => '/boot/config/plugins/docker.networks/docker.networks.cfg',
     'pluginCfg' => [
       'REFRESH_INTERVAL' => $cfg['REFRESH_INTERVAL'] ?? null,
-      'XML_TEMPLATE_PERSIST' => $cfg['XML_TEMPLATE_PERSIST'] ?? null,
     ],
     'dockerDefaultsPath' => "$docroot/plugins/dynamix.docker.manager/default.cfg",
     'dockerCfgPath' => '/boot/config/docker.cfg',
@@ -68,7 +68,7 @@ if (function_exists('dockerNetworksLogger')) {
       'showSystemNetworks' => $showSystemNetworks,
       'showDefaultNetworks' => $showDefaultNetworks,
       'userNetworksPersist' => $userNetworksPersist,
-      'xmlTemplatePersist' => $xmlTemplatePersist,
+      'attachmentsSupported' => $attachmentsSupported,
     ],
   ], 'daemon', 'debug', 'settings');
 }
@@ -79,7 +79,8 @@ window.dockerNetworksRefreshInterval = <?= (int)$refreshInterval ?>;
 window.dockerNetworksShowSystemNetworks = <?= $showSystemNetworks ? 'true' : 'false' ?>;
 window.dockerNetworksShowDefaultNetworks = <?= $showDefaultNetworks ? 'true' : 'false' ?>;
 window.dockerNetworksUserNetworksPersist = <?= $userNetworksPersist ? 'true' : 'false' ?>;
-window.dockerNetworksXmlTemplatePersist = <?= $xmlTemplatePersist ? 'true' : 'false' ?>;
+window.dockerNetworksAttachmentsSupported = <?= $attachmentsSupported ? 'true' : 'false' ?>;
+window.dockerNetworksLegacyNetworkContainers = <?= json_encode($legacyNetworkContainers, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE) ?>;
 window.dockerNetworksSettingsUrl = '/Settings/DockerSettings';
 window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
 </script>
@@ -205,7 +206,7 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
     </div>
 
     <div class="form-group">
-      <label for="connectContainerIpInput">IP Address For Single Attach (Optional):</label>
+      <label for="connectContainerIpInput">Runtime IP Address For Single Attach (Not Persisted):</label>
       <input type="text" id="connectContainerIpInput" name="connectContainerIpInput" placeholder="Used only when moving one container to Attached" />
       <small style="display: block; margin-top: 5px; color: #666;">Format: xxx.xxx.xxx.xxx (must be within network subnet)</small>
     </div>
