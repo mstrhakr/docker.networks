@@ -186,6 +186,41 @@
     return div.innerHTML;
   }
 
+  function isSupportedNetworkName(name) {
+    return /^[a-z0-9][a-z0-9_.-]*$/.test(name);
+  }
+
+  function suggestSupportedNetworkName(name) {
+    return String(name || '').trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').replace(/^[._-]+|[._-]+$/g, '');
+  }
+
+  function updateNetworkNameHint() {
+    var enteredName = String($('#networkName').val() || '');
+    var name = enteredName.trim();
+    var valid = isSupportedNetworkName(name);
+    var suggestion = suggestSupportedNetworkName(name);
+    var hint = $('#networkNameHint');
+    var fix = $('#networkNameFix');
+
+    if (!enteredName || valid) {
+      fix.hide();
+      hint.text('');
+      $('#btnFixNetworkName').data('suggested-name', '');
+      return;
+    }
+
+    if (!suggestion) {
+      hint.text('Enter a name that contains at least one letter or number.');
+      $('#btnFixNetworkName').hide().data('suggested-name', '');
+      fix.css('display', 'flex');
+      return;
+    }
+
+    hint.text('Use lowercase letters, numbers, periods, underscores, and hyphens. Suggested name: ' + suggestion);
+    $('#btnFixNetworkName').data('suggested-name', suggestion);
+    fix.css('display', 'flex');
+  }
+
   /**
    * Validate IPv4 address format
    */
@@ -1464,8 +1499,14 @@
 
   function createNetwork(event) {
     event.preventDefault();
+    var name = String($('#networkName').val() || '').trim();
+    if (!isSupportedNetworkName(name)) {
+      updateNetworkNameHint();
+      $('#networkName').trigger('focus');
+      return;
+    }
     var payload = {
-      name: $('#networkName').val(),
+      name: name,
       driver: $('#networkDriver').val(),
       subnet: $('#networkSubnet').val()
     };
@@ -1552,6 +1593,16 @@
     $('#btnMoveAllLeft').on('click', moveAllLeft);
 
     $('#createNetworkForm').on('submit', createNetwork);
+    $('#networkName').on('input', updateNetworkNameHint);
+    $('#btnFixNetworkName').on('click', function () {
+      var suggestedName = String($(this).data('suggested-name') || '');
+      if (!suggestedName) {
+        return;
+      }
+      $('#networkName').val(suggestedName);
+      updateNetworkNameHint();
+      $('#networkName').trigger('focus');
+    });
   $('#manageNetworkDetailsForm').on('submit', updateManageNetworkDetails);
 
     loadNetworks({ showLoading: true, refreshContainers: false }).catch(function () {

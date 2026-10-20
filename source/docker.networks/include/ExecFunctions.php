@@ -311,6 +311,18 @@ function dockerNetworksSupportsExtraNetworks(?string $version = null): bool
         && version_compare($version, '7.4.0-beta.1.2', '>=');
 }
 
+function dockerNetworksIsSupportedNetworkName(string $name): bool
+{
+    return preg_match('/^[a-z0-9][a-z0-9_.-]*$/D', $name) === 1;
+}
+
+function dockerNetworksSuggestSupportedNetworkName(string $name): string
+{
+    $suggestion = strtolower(trim($name));
+    $suggestion = preg_replace('/[^a-z0-9_.-]+/', '-', $suggestion) ?: '';
+    return trim($suggestion, '._-');
+}
+
 function dockerNetworksExtraNetworks(SimpleXMLElement $xml): array
 {
     return array_values(array_unique(preg_split('/[\s,]+/', trim((string) ($xml->ExtraNetworks ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: []));
@@ -750,6 +762,15 @@ function dockerNetworksHandleCreateNetwork(array $request): void
     $name = isset($request['name']) ? trim((string) $request['name']) : '';
     if ($name === '') {
         dockerNetworksRespond(['success' => false, 'error' => 'Network name is required'], 400);
+        return;
+    }
+    if (!dockerNetworksIsSupportedNetworkName($name)) {
+        $suggestion = dockerNetworksSuggestSupportedNetworkName($name);
+        $error = 'Use lowercase letters, numbers, periods, underscores, and hyphens; the name must start with a letter or number.';
+        if ($suggestion !== '') {
+            $error .= ' Suggested name: ' . $suggestion;
+        }
+        dockerNetworksRespond(['success' => false, 'error' => $error, 'suggestedName' => $suggestion], 400);
         return;
     }
 

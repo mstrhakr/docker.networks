@@ -229,6 +229,26 @@
   color: var(--dn-text-color);
 }
 
+#docker-networks-page .dn-network-name-fix {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+#docker-networks-page #networkNameHint {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--dn-text-color);
+  font-size: 0.9em;
+}
+
+#docker-networks-page #btnFixNetworkName {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+}
+
 #docker-networks-page .dn-inline-save-row {
   display: flex;
   align-items: center;

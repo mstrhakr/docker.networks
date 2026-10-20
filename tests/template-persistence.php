@@ -18,6 +18,14 @@ foreach (['' => false, 'unknown' => false, '6.12.0' => false, '7.3.2' => false,
     checkPersistence(dockerNetworksSupportsExtraNetworks($version) === $supported, 'Version gate: ' . $version);
 }
 
+foreach (['docker-socket-proxy' => true, 'service_1.test' => true, 'Docker-Socket-Proxy' => false,
+    'Docker Socket Proxy' => false, 'comma,name' => false, '-leading' => false, 'name-' => true] as $name => $supported) {
+    checkPersistence(dockerNetworksIsSupportedNetworkName($name) === $supported, 'Network name validation: ' . $name);
+}
+checkPersistence(dockerNetworksSuggestSupportedNetworkName(' Docker Socket Proxy ') === 'docker-socket-proxy', 'Suggest lowercase hyphenated name');
+checkPersistence(dockerNetworksSuggestSupportedNetworkName('Proxy__LAN') === 'proxy__lan', 'Preserve supported underscores');
+checkPersistence(dockerNetworksSuggestSupportedNetworkName(' -- ') === '', 'Reject empty suggestion');
+
 $xml = simplexml_load_string('<Container><Name>example</Name><Network>primary</Network><ExtraNetworks>one,two one</ExtraNetworks><PostArgs>app  --flag &amp;&amp; docker network connect one example</PostArgs><ExtraParams>--cpus=2</ExtraParams></Container>');
 checkPersistence($xml !== false, 'Fixture XML');
 $postArgs = (string) $xml->PostArgs;

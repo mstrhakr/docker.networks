@@ -123,7 +123,11 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
     <form id="createNetworkForm">
       <div class="form-group">
         <label for="networkName">Network Name:</label>
-        <input type="text" id="networkName" name="networkName" required>
+        <input type="text" id="networkName" name="networkName" aria-describedby="networkNameHint" required>
+        <div class="dn-network-name-fix" id="networkNameFix" style="display:none;">
+          <span id="networkNameHint" role="status"></span>
+          <button type="button" class="button" id="btnFixNetworkName">Fix Name</button>
+        </div>
       </div>
       <div class="form-group">
         <label for="networkDriver">Driver:</label>
