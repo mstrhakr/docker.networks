@@ -36,6 +36,9 @@
   var networksById = {};
   var scheduledNetworksForCurrentNetwork = {};
 
+  var networksTabStarted = false;
+  var networksTabWasVisible = false;
+  var networksRefreshTimer = null;
   function networkKey(net) {
     if (!net) {
       return '';
@@ -169,24 +172,55 @@
       return;
     }
 
-    function showIfVisible() {
-      if (!root.getClientRects().length || $(root).is(':hidden') || getComputedStyle(root).visibility === 'hidden') {
-        return false;
+    function updateTabVisibility() {
+      var visible = root.getClientRects().length > 0 && !$(root).is(':hidden')
+        && getComputedStyle(root).visibility !== 'hidden';
+      if (!visible) {
+        networksTabWasVisible = false;
+        if (networksRefreshTimer !== null) {
+          clearInterval(networksRefreshTimer);
+          networksRefreshTimer = null;
+        }
+        return;
       }
-      showLegacyNetworkWarning();
-      return true;
+
+      if (!networksTabStarted) {
+        networksTabStarted = true;
+        showLegacyNetworkWarning();
+        loadNetworks({ showLoading: true, refreshContainers: false }).catch(function () {
+          return undefined;
+        });
+        loadContainers();
+        logClient('Docker Networks UI initialized', { refreshMs: refreshMs }, 'info', 'ui');
+      } else if (!networksTabWasVisible) {
+        loadNetworks({ refreshContainers: true }).catch(function () {
+          return undefined;
+        });
+      }
+      networksTabWasVisible = true;
+
+      if (networksRefreshTimer === null) {
+        networksRefreshTimer = setInterval(function () {
+          if (actionInProgress || $('#manageModal').is(':visible')) {
+            return;
+          }
+          if (!root.getClientRects().length || $(root).is(':hidden') || getComputedStyle(root).visibility === 'hidden') {
+            updateTabVisibility();
+            return;
+          }
+          loadNetworks({ refreshContainers: !!currentNetwork }).catch(function () {
+            return undefined;
+          });
+        }, refreshMs);
+      }
     }
 
     var panel = root.closest('.tab-content') || root;
     if (typeof window.MutationObserver === 'function') {
-      var observer = new MutationObserver(function () {
-        if (showIfVisible()) {
-          observer.disconnect();
-        }
-      });
+      var observer = new MutationObserver(updateTabVisibility);
       observer.observe(panel, { attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
     }
-    showIfVisible();
+    updateTabVisibility();
   }
 
   function logClient(msg, data, level, category) {
@@ -744,7 +778,15 @@
       refreshManageModal();
       return data;
     }).catch(function (err) {
+      var message = 'Unable to load Docker networks: ' + String(err) + '. Use Refresh to try again.';
       logClient('Load networks failed', { error: String(err) }, 'error', 'api');
+      showMessage(message, true);
+      if (!Object.keys(networksById).length) {
+        $('#networksBody').empty().append(
+          $('<tr></tr>').append($('<td colspan="6"></td>').text(message))
+        );
+        $('#networksTable').show();
+      }
     }).finally(function () {
       if (settings.showLoading) {
         $('#loading').hide();
@@ -1634,18 +1676,5 @@
     });
   $('#manageNetworkDetailsForm').on('submit', updateManageNetworkDetails);
 
-    loadNetworks({ showLoading: true, refreshContainers: false }).catch(function () {
-      return undefined;
-    });
-    loadContainers();
-    logClient('Docker Networks UI initialized', { refreshMs: refreshMs }, 'info', 'ui');
-    setInterval(function () {
-      if (actionInProgress || $('#manageModal').is(':visible')) {
-        return;
-      }
-      loadNetworks({ refreshContainers: !!currentNetwork }).catch(function () {
-        return undefined;
-      });
-    }, refreshMs);
   });
 })();
