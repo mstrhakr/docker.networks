@@ -155,18 +155,38 @@
 
   function showLegacyNetworkWarning() {
     var containers = window.dockerNetworksLegacyNetworkContainers || [];
-    if (!containers.length) {
+    if (!containers.length || localStorage.getItem('dockerNetworksLegacyWarningDismissed') === '1') {
       return;
     }
-    var message = 'Network reconnect commands were detected in Post Arguments for: ' + containers.join(', ') + '. These commands may be intentional, but can cause duplicate-endpoint errors or failed container updates and can conflict with native Additional Networks. Attachment changes are blocked for these containers until the commands are reviewed in the Unraid container editor. Docker Networks has not changed or removed any Post Arguments.';
-    var runtime = getSwalRuntime();
-    if (runtime && runtime.version === 2) {
-      runtime.api.fire({ title: 'Review Network Post Arguments', text: message, icon: 'warning' });
-    } else if (runtime && runtime.version === 1) {
-      runtime.api({ title: 'Review Network Post Arguments', text: escapeHtml(message), type: 'warning' });
-    } else {
-      alert(message);
+    $('#legacyNetworkWarningContainers').text(containers.join(', '));
+    $('#dontRemindLegacyNetworkWarning').prop('checked', false);
+    $('#legacyNetworkWarningModal').show().attr('aria-hidden', 'false');
+  }
+
+  function waitForNetworksTabVisibility() {
+    var root = document.getElementById('docker-networks-page');
+    if (!root) {
+      return;
     }
+
+    function showIfVisible() {
+      if (!root.getClientRects().length || $(root).is(':hidden') || getComputedStyle(root).visibility === 'hidden') {
+        return false;
+      }
+      showLegacyNetworkWarning();
+      return true;
+    }
+
+    var panel = root.closest('.tab-content') || root;
+    if (typeof window.MutationObserver === 'function') {
+      var observer = new MutationObserver(function () {
+        if (showIfVisible()) {
+          observer.disconnect();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+    }
+    showIfVisible();
   }
 
   function logClient(msg, data, level, category) {
@@ -1561,7 +1581,7 @@
     updateUserNetworksWarning();
     updateTemplatePersistenceWarning();
     disableUnsupportedAttachmentControls();
-    showLegacyNetworkWarning();
+    waitForNetworksTabVisibility();
 
     $('#docker-networks-page').on('click', '.dn-page-action', function () {
       var action = $(this).data('action');
@@ -1585,6 +1605,15 @@
     });
     $('#closeCreateModal').on('click', closeCreateModal);
     $('#btnCancelCreate').on('click', closeCreateModal);
+    $('#closeLegacyNetworkWarning').on('click', function () {
+      $('#legacyNetworkWarningModal').hide().attr('aria-hidden', 'true');
+    });
+    $('#btnDismissLegacyNetworkWarning').on('click', function () {
+      if ($('#dontRemindLegacyNetworkWarning').is(':checked')) {
+        localStorage.setItem('dockerNetworksLegacyWarningDismissed', '1');
+      }
+      $('#legacyNetworkWarningModal').hide().attr('aria-hidden', 'true');
+    });
     $('#closeManageModal').on('click', closeManageModal);
     $('#btnCloseManage').on('click', closeManageModal);
     $('#btnMoveSelectedRight').on('click', moveSelectedRight);

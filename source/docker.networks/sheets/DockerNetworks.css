@@ -236,6 +236,29 @@
   margin-top: 8px;
 }
 
+#docker-networks-page .dn-legacy-network-list {
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+#docker-networks-page .dn-warning-dismiss-option {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 8px;
+  font-weight: 400 !important;
+}
+
+#docker-networks-page .dn-warning-dismiss-option input {
+  width: auto;
+  margin: 0;
+}
+
+#docker-networks-page #btnDismissLegacyNetworkWarning {
+  width: 100%;
+  margin-top: 8px;
+}
+
 #docker-networks-page #networkNameHint {
   flex: 1 1 auto;
   min-width: 0;

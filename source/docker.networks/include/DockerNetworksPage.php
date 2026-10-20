@@ -91,6 +91,23 @@ window.dockerNetworksPluginSettingsUrl = '/Settings/docker.networks.settings';
 <div class="alert" id="dockerUserNetworksWarning" style="display:none;"></div>
 <div class="alert" id="dockerTemplatePersistenceWarning" style="display:none;"></div>
 
+<div id="legacyNetworkWarningModal" class="modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="legacyNetworkWarningTitle">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="legacyNetworkWarningTitle">Review Network Post Arguments</h2>
+      <button type="button" class="close" id="closeLegacyNetworkWarning" aria-label="Close">&times;</button>
+    </div>
+    <p>Network reconnect commands were detected in Post Arguments for these containers:</p>
+    <p id="legacyNetworkWarningContainers" class="dn-legacy-network-list"></p>
+    <p>They may conflict with native Additional Networks. Review them in the Unraid container editor before changing attachments. Docker Networks will not edit or remove Post Arguments.</p>
+    <label class="dn-warning-dismiss-option">
+      <input type="checkbox" id="dontRemindLegacyNetworkWarning">
+      Don't remind me again
+    </label>
+    <button type="button" class="button orange-button" id="btnDismissLegacyNetworkWarning">OK</button>
+  </div>
+</div>
+
 <?= dockerNetworksPageRenderActions() ?>
 
 <div class="loading" id="loading">
