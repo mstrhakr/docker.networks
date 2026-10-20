@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "docker.networks">
 <!ENTITY author "mstrhakr">
-<!ENTITY version     "2026.10.20.1254">
+<!ENTITY version     "2026.10.20.1511">
 <!ENTITY launch "Settings/docker.networks.settings">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5  "a519dec94429e9a54182edde4be4a89d">
-<!ENTITY pkgBUILD    "1654">
+<!ENTITY packageMD5  "29859a1c46662211ecb848058f7ee14e">
+<!ENTITY pkgBUILD    "1911">
 <!ENTITY packageName "&name;-&packageVER;-noarch-&pkgBUILD;">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY github "mstrhakr/docker.networks">
@@ -32,10 +32,11 @@
 >
 
 <CHANGES>
-###2026.10.20.1254
-- Features (readme): add shields to readme
-- Bug Fixes (networks): use native attachments and leave PostArgs untouched
-- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.06.22.2333...v2026.10.20.1254)
+###2026.10.20.1511
+- Features (networks): suggest supported names on create
+- Bug Fixes (networks): pause refresh while Docker tab is hidden
+- Bug Fixes (networks): defer legacy warning until tab opens
+- [View all changes](https://github.com/mstrhakr/docker.networks/compare/v2026.10.20.1254...v2026.10.20.1511)
 </CHANGES>
 
 <FILE Run="/bin/bash">
